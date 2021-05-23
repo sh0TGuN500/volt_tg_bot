@@ -43,6 +43,7 @@ data_dict = dict()
 separator = '🔽' * 14 + '\n'
 
 # Admin list
+dev, owner = bot_dev, bot_owner
 forward_to = [dev, owner]
 
 # Enable logging
@@ -215,7 +216,7 @@ def start(update: Update, context: CallbackContext) -> int or None:
 
     couriers = [i[0] for i in cur.execute("SELECT telegram_id FROM couriers").fetchall()]
 
-    if from_user.id in [owner, dev]:
+    if from_user.id in forward_to:
         role = 'Admin'
         reply = 'Приветствую Вас, Чемпион !\nЧемпион зверей !!! Чемпион людей !!! ✅'
         method: int = ADMIN
