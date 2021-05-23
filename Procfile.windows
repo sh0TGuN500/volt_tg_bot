@@ -1,1 +1,1 @@
-bot: python3 volt_tg_bot.py
+bot: python bot.py
