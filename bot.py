@@ -22,15 +22,11 @@ from telegram.ext import (
     PreCheckoutQueryHandler
 )
 
-from boto.s3.connection import S3Connection
-s3 = S3Connection(
-    os.environ['BOT_TOKEN'], 
-    os.environ['public_liqpay_sandbox'], 
-    os.environ['bot_dev'], 
-    os.environ['bot_owner']
-)
+BOT_TOKEN = os.environ['BOT_TOKEN'] 
+public_liqpay_sandbox = os.environ['public_liqpay_sandbox']
+bot_dev = os.environ['bot_dev']
+bot_owner = os.environ['bot_owner']
 
-print(s3)
 
 # from owner_data import *
 
