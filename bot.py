@@ -21,7 +21,7 @@ from telegram.ext import (
     PreCheckoutQueryHandler
 )
 
-from owner_data import *
+# from owner_data import *
 
 # BLACKLIST and couriers update and optimization
 def blacklist_update(courier_reload=False) -> list:
@@ -48,7 +48,7 @@ forward_to = [dev, owner]
 # Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO, filename='bot.log'
+    level=logging.INFO
 )  # , filename='bot.log'
 
 logger = logging.getLogger(__name__)
@@ -722,7 +722,7 @@ def client_menu(update: Update, context: CallbackContext) -> int or None:
                 # select a payload just for you to recognize its the donation from your bot
                 payload = "Custom-Payload"
                 # In order to get a provider_token see https://core.telegram.org/bots/payments#getting-a-token
-                provider_token = liqpay_sandbox['public']
+                provider_token = public_liqpay_sandbox
                 start_parameter = price[2]
                 currency = "UAH"
                 # price in dollars
