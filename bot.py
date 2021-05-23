@@ -23,7 +23,7 @@ from telegram.ext import (
 )
 
 from boto.s3.connection import S3Connection
-s3 = S3Connection(
+BOT_TOKEN, public_liqpay_sandbox, bot_dev, bot_owner = S3Connection(
     os.environ['BOT_TOKEN'], 
     os.environ['public_liqpay_sandbox'], 
     os.environ['bot_dev'], 
