@@ -1,0 +1,7 @@
+APScheduler
+certifi
+python-telegram-bot
+pytz
+six
+tornado
+tzlocal
