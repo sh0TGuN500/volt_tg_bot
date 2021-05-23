@@ -24,8 +24,8 @@ from telegram.ext import (
 
 BOT_TOKEN = os.environ['BOT_TOKEN'] 
 public_liqpay_sandbox = os.environ['public_liqpay_sandbox']
-bot_dev = os.environ['bot_dev']
-bot_owner = os.environ['bot_owner']
+bot_dev = int(os.environ['bot_dev'])
+bot_owner = int(os.environ['bot_owner'])
 
 
 # from owner_data import *
@@ -730,16 +730,18 @@ def client_menu(update: Update, context: CallbackContext) -> int or None:
                 payload = "Custom-Payload"
                 # In order to get a provider_token see https://core.telegram.org/bots/payments#getting-a-token
                 provider_token = public_liqpay_sandbox
-                start_parameter = price[2]
                 currency = "UAH"
                 # price in dollars
                 # price * 100 so as to include 2 decimal points
                 prices = [LabeledPrice('Продукція', price[0]), LabeledPrice('Доставка', price[1])]
 
+                log_text = f'Payment order: {prices[2]}'
+                log('Client', 'Tip', user, manual=log_text)
+
                 # optionally pass need_name=True, need_phone_number=True,
                 # need_email=True, need_shipping_address=True, is_flexible=True
                 context.bot.send_invoice(
-                    chat_id, title, description, payload, provider_token, start_parameter, currency, prices
+                    chat_id, title, description, payload, provider_token, currency, prices
                 )
 
             reply = 'Здійснюється процес оплати...'
@@ -953,7 +955,6 @@ def tip(update: Update, context: CallbackContext) -> int:
                 payload = "Custom-Payload"
                 # In order to get a provider_token see https://core.telegram.org/bots/payments#getting-a-token
                 provider_token = public_liqpay_sandbox
-                start_parameter = str(order_id) + '_tip' if order_id else 'owner_tip'
                 currency = "UAH"
                 # price in dollars
                 # price * 100 so as to include 2 decimal points
@@ -961,7 +962,7 @@ def tip(update: Update, context: CallbackContext) -> int:
                 # optionally pass need_name=True, need_phone_number=True,
                 # need_email=True, need_shipping_address=True, is_flexible=True
                 context.bot.send_invoice(
-                    chat_id, title, description, payload, provider_token, start_parameter, currency, prices
+                    chat_id, title, description, payload, provider_token, currency, prices
                 )
                 reply = 'Здійснюється процес оплати...'
                 reply_markup = ReplyKeyboardRemove()
@@ -985,6 +986,8 @@ def precheckout_callback(update: Update, context: CallbackContext) -> None:
 def successful_payment_callback(update: Update, context: CallbackContext) -> None:
     user, from_user = base(update.message)
     order_id: int = data_dict[from_user.id]['order']
+    log_text = f'Payment {order_id} successful'
+    log('Client', 'Tip', user, manual=log_text)
     with sq.connect("database.db") as database:
         cur = database.cursor()
     if data_dict[from_user.id]['pay_type'] == 1:
@@ -995,7 +998,10 @@ def successful_payment_callback(update: Update, context: CallbackContext) -> Non
         database.commit()
         if courier_id:
             text = f'Замовлення #{order_id} оплачено'
-            user.bot.send_message(text=text, chat_id=courier_id, reply_markup=delivery_markup)
+            courier_status = cur.execute(f"SELECT telegram_id FROM couriers WHERE is_free = ?"
+                                 " AND telegram_id = ?", [False, courier_id]).fetchone()[0]
+            user.bot.send_message(text=text, chat_id=courier_id, 
+                                  reply_markup=delivery_markup if courier_status else ReplyKeyboardRemove())
     elif data_dict[from_user.id]['pay_type'] == 2:
         tip_value: int = data_dict[from_user.id]['tip_value']
         if order_id:
