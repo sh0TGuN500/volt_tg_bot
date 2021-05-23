@@ -21,6 +21,14 @@ from telegram.ext import (
     PreCheckoutQueryHandler
 )
 
+from boto.s3.connection import S3Connection
+s3 = S3Connection(
+    os.environ['BOT_TOKEN'], 
+    os.environ['public_liqpay_sandbox'], 
+    os.environ['bot_dev'], 
+    os.environ['bot_owner']
+)
+
 # from owner_data import *
 
 # BLACKLIST and couriers update and optimization
@@ -43,8 +51,7 @@ data_dict = dict()
 separator = '🔽' * 14 + '\n'
 
 # Admin list
-dev, owner = bot_dev, bot_owner
-forward_to = [dev, owner]
+forward_to = [bot_dev, bot_owner]
 
 # Enable logging
 logging.basicConfig(
@@ -946,7 +953,7 @@ def tip(update: Update, context: CallbackContext) -> int:
                 # select a payload just for you to recognize its the donation from your bot
                 payload = "Custom-Payload"
                 # In order to get a provider_token see https://core.telegram.org/bots/payments#getting-a-token
-                provider_token = liqpay_sandbox['public']
+                provider_token = public_liqpay_sandbox
                 start_parameter = str(order_id) + '_tip' if order_id else 'owner_tip'
                 currency = "UAH"
                 # price in dollars
