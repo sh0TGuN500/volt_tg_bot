@@ -577,7 +577,7 @@ def courier_purchase(update: Update, context: CallbackContext) -> int:
         check_message = data_dict[from_user.id]['check_message']
         log('Courier', 'Status', user, sf=False, manual='Send checks and delivery')
         update_orders_filter = [True, order_id]
-        cur.execute("UPDATE orders SET purchased = ? WHERE pk = ?", [update_orders_filter])
+        cur.execute("UPDATE orders SET purchased = ? WHERE pk = ?", update_orders_filter)
         message = f'Чеки до замовлення #{order_id}:'
         check_list = []
         for chat in forward_to:
