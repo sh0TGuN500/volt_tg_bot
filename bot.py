@@ -54,9 +54,8 @@ forward_to = [bot_dev, bot_owner]
 
 # Enable logging
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)  # , filename='bot.log'
+    format='%(name)s - %(levelname)s - %(message)s',level=logging.INFO
+) # %(asctime)s -  , filename='bot.log'
 
 logger = logging.getLogger(__name__)
 
@@ -459,6 +458,7 @@ def cancel_order(update: Update, context: CallbackContext) -> int:
         with sq.connect("database.db") as database:
             cur = database.cursor()
         client_id = cur.execute("SELECT user_id FROM orders WHERE pk = ?", [user.text]).fetchone()[0]
+        print(client_id)
         data_dict[from_user.id]['cancel'] = client_id
         update_orders_filter = [True, user.text]
         cur.execute("UPDATE orders SET canceled = ? WHERE pk = ?", update_orders_filter)
