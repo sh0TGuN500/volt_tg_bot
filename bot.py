@@ -493,7 +493,7 @@ def courier_menu(update: Update, context: CallbackContext) -> int:
         cur = database.cursor()
     courier_name: str = cur.execute("SELECT name FROM couriers WHERE telegram_id = ?", [from_user.id]).fetchone()[0]
     update_couriers_filter = [True, True, from_user.id]
-    cur.execute("UPDATE couriers SET ready = ?, is_free = ? WHERE telegram_id = ?", update_courier_filter)
+    cur.execute("UPDATE couriers SET ready = ?, is_free = ? WHERE telegram_id = ?", update_couriers_filter)
     database.commit()
     order_exist_filter = [from_user.id, False, False]
     order_exist: tuple = cur.execute("SELECT pk FROM orders WHERE courier_id = ?"
