@@ -223,19 +223,19 @@ def start(update: Update, context: CallbackContext) -> int or None:
 
     if from_user.id in forward_to:
         role = 'Admin'
-        reply = 'Приветствую Вас, Чемпион !\nЧемпион зверей !!! Чемпион людей !!! ✅'
+        reply = f'Приветствую Вас, {user_data[1]}-Чемпион !\nЧемпион зверей !!! Чемпион людей !!! ✅'
         method: int = ADMIN
         reply_markup = admin_markup
 
     elif from_user.id in couriers:
         role = 'Courier'
-        reply = 'Доброго дня, кур\'єр доставки Volt.\nДотримуйтесь умов карантину\nБажаю гарного робочого дня! ✅'
+        reply = f'Вітаю, кур\'єр доставки Volt, {user_data[1]}.\nДотримуйтесь умов карантину\nБажаю гарного робочого дня! ✅'
         method: int = COURIER
         reply_markup = courier_markup
 
     else:
         role = 'Client'
-        reply = 'Тут Ви можете сформувати своє замовлення, а ми,\nв свою чергу, забезпечимо його доставку. ✅'
+        reply = f'Вітаю {user_data[1]}!\nТут Ви можете сформувати своє замовлення, а ми,\nв свою чергу, забезпечимо його доставку. ✅'
         method: int = CLIENT
         reply_markup = client_markup
 
@@ -393,9 +393,9 @@ def start_count(update: Update, context: CallbackContext) -> int:
             reply = f'Ви ввели "{user.text}", а потрібно ввети ціле число від 0 до 9\'999'
             reply_markup = back_markup
             method: int = START_COUNT
-            log('Client', 'Start count', user, manual=f'ValueError: {user.text}')
+            log('Client', 'Order for counting', user, manual=f'ValueError: {user.text}')
         else:
-            log('Admin', 'Start count', user)
+            log('Admin', 'Order for counting', user)
             data_dict[from_user.id]['count'] = order_id
             reply = 'Вартість чеку і доставка 12.23 45,56:'
             reply_markup = back_markup
@@ -415,7 +415,7 @@ def end_count(update: Update, context: CallbackContext) -> int:
     else:
         money_correct = [int(float(i.replace(',', '.')) * 100) for i in user.text.split(' ')]
 
-        log('Admin', 'End count', user)
+        log('Admin', 'Counting result', user)
         if len(money_correct) != 2:
             text = f'Ти ввів {user.text}, а потрібно ввести два числа,' \
                    '\nЧек потім доставка, через пробіл (12,3 4.56)!\nВводи іще раз:'
@@ -457,9 +457,8 @@ def cancel_order(update: Update, context: CallbackContext) -> int:
     else:
         with sq.connect("database.db") as database:
             cur = database.cursor()
-        client_id = cur.execute("SELECT user_id FROM orders WHERE pk = ?", [user.text]).fetchone()[0]
-        print(client_id)
-        data_dict[from_user.id]['cancel'] = client_id
+        client_id, client_name = cur.execute("SELECT user_id, full_name FROM orders WHERE pk = ?", [user.text]).fetchone()[0]
+        data_dict[from_user.id]['cancel'] = [client_id, client_name]
         update_orders_filter = [True, user.text]
         cur.execute("UPDATE orders SET canceled = ? WHERE pk = ?", update_orders_filter)
         database.commit()
@@ -474,8 +473,8 @@ def cancel_order(update: Update, context: CallbackContext) -> int:
 def client_cancel_callback(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
     log('Admin', 'Cancel callback', user)
-    client_id = data_dict[from_user.id]['cancel']
-    message = f'Шановний (ПіБ),\nВаше замовлення (# замовлення) скасовано\nПричина:\n{user.text}'
+    client_id, client_name = data_dict[from_user.id]['cancel']
+    message = f'Шановний {client_name},\nВаше замовлення (# замовлення) скасовано\nПричина:\n{user.text}'
     user.bot.send_message(text=message, chat_id=client_id)
     user.reply_text('Повідомлення відправленно', reply_markup=admin_markup)
 
