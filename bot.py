@@ -22,7 +22,7 @@ from telegram.ext import (
     PreCheckoutQueryHandler
 )
 
-BOT_TOKEN = os.environ['BOT_TOKEN'] 
+BOT_TOKEN = os.environ['BOT_TOKEN']
 public_liqpay_sandbox = os.environ['public_liqpay_sandbox']
 bot_dev = int(os.environ['bot_dev'])
 bot_owner = int(os.environ['bot_owner'])
@@ -36,11 +36,12 @@ def blacklist_update(courier_reload=False) -> list:
         cursor = blacklist.cursor()
     blacklist_filter = [True]
     courier_filter = [False, True, True, False]
-    BLACK_LIST = [i[0] for i in cursor.execute("SELECT id FROM users WHERE blocked = ?", blacklist_filter).fetchall()]
+    black_list = [i[0] for i in cursor.execute("SELECT id FROM users WHERE blocked = ?", blacklist_filter).fetchall()]
     if courier_reload:
         cursor.execute("UPDATE couriers SET ready = ?, is_free = ? WHERE ready = ? OR is_free = ?", courier_filter)
     blacklist.commit()
-    return BLACK_LIST
+    return black_list
+
 
 BLACK_LIST = blacklist_update(True)
 
@@ -54,8 +55,8 @@ forward_to = [bot_dev, bot_owner]
 
 # Enable logging
 logging.basicConfig(
-    format='%(name)s - %(levelname)s - %(message)s',level=logging.INFO
-) # %(asctime)s -  , filename='bot.log'
+    format='%(name)s - %(levelname)s - %(message)s', level=logging.INFO
+)  # %(asctime)s -  , filename='bot.log'
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +103,50 @@ def courier_problem_module(user, from_user, order_id, stage):
     update_couriers_filter = [True, False, from_user.id]
     cur.execute(f"UPDATE couriers SET is_free = ?, ready = ? WHERE telegram_id = ?", update_couriers_filter)
     database.commit()
+    return reply, reply_markup, method
+
+
+# Pay function
+def pay_preprocessor(user, order_id, chat_id, pay_value, pay_type, context):
+
+    if pay_type == 1:
+        title = "Оплата замовлення"
+        description = f'Замовлення #{order_id} \n' \
+                      f'Вартість продукції: {pay_value[0] / 100} грн \n' \
+                      f'Вартість доставки: {pay_value[1] / 100} грн \n'
+        # price * 100 so as to include 2 decimal points
+        prices = [
+            LabeledPrice('Продукція', pay_value[0]),
+            LabeledPrice('Доставка', pay_value[1])
+        ]
+        log_text = f'Payment order: {order_id}, production: {pay_value[0]}, delivery: {pay_value[1]}'
+
+    elif pay_type == 2:
+        title = 'Чайові'
+        prices = [LabeledPrice(title, pay_value * 100)]
+        if order_id:
+            description = f'Чайові до замовлення #{order_id}'
+            log_text = f'Tip payment: {pay_value}, order: {order_id}'
+        else:
+            description = 'Чайові для власника сервісу'
+            log_text = f'Tip payment: {pay_value}'
+
+    # select a payload just for you to recognize its the donation from your bot
+    payload = "Custom-Payload"
+    # In order to get a provider_token see https://core.telegram.org/bots/payments#getting-a-token
+    provider_token = public_liqpay_sandbox
+    # price in hryvnias
+    currency = "UAH"
+    # optionally pass need_name=True, need_phone_number=True,
+    # need_email=True, need_shipping_address=True, is_flexible=True
+    context.bot.send_invoice(
+        chat_id, title, description, payload, provider_token, currency, prices
+    )
+    reply = 'Здійснюється процес оплати...'
+    reply_markup = ReplyKeyboardRemove()
+    method: None = None
+    log('Client', 'Tip', user, manual=log_text)
+
     return reply, reply_markup, method
 
 
@@ -173,8 +218,6 @@ delivery_keyboard = [
     [button9]
 ]
 
-order_list_keyboard = []
-
 client_markup = ReplyKeyboardMarkup(client_keyboard, one_time_keyboard=True, resize_keyboard=True)
 
 payment_type_markup = ReplyKeyboardMarkup(payment_type_keyboard, one_time_keyboard=True, resize_keyboard=True)
@@ -198,8 +241,6 @@ delivery_markup = ReplyKeyboardMarkup(delivery_keyboard, one_time_keyboard=True,
 courier_problem_markup = ReplyKeyboardMarkup([[button9]], one_time_keyboard=True, resize_keyboard=True)
 
 confirm_pay_markup = ReplyKeyboardMarkup([[button21], [button9]], one_time_keyboard=True, resize_keyboard=True)
-
-order_list_markup = ReplyKeyboardMarkup(order_list_keyboard, one_time_keyboard=True, resize_keyboard=True)
 
 
 def start(update: Update, context: CallbackContext) -> int or None:
@@ -229,13 +270,15 @@ def start(update: Update, context: CallbackContext) -> int or None:
 
     elif from_user.id in couriers:
         role = 'Courier'
-        reply = f'Вітаю, кур\'єр доставки Volt, {user_data[1]}.\nДотримуйтесь умов карантину\nБажаю гарного робочого дня! ✅'
+        reply = f'Вітаю, кур\'єр доставки Volt, {user_data[1]}.' \
+                '\nДотримуйтесь умов карантину\nБажаю гарного робочого дня! ✅'
         method: int = COURIER
         reply_markup = courier_markup
 
     else:
         role = 'Client'
-        reply = f'Вітаю {user_data[1]}!\nТут Ви можете сформувати своє замовлення, а ми,\nв свою чергу, забезпечимо його доставку. ✅'
+        reply = f'Вітаю {user_data[1]}!\nТут Ви можете сформувати своє замовлення, а ми,' \
+                '\nв свою чергу, забезпечимо його доставку. ✅'
         method: int = CLIENT
         reply_markup = client_markup
 
@@ -256,12 +299,15 @@ def admin_menu(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
     log('Admin', 'Admin menu', user)
     data_dict[from_user.id] = {'order_id': '', 'count': '', 'cancel': ''}
-    order_list_keyboard = []
     with sq.connect("database.db") as database:
         cur = database.cursor()
     global BLACK_LIST
     BLACK_LIST = blacklist_update()
-    if user.text in [button2, button3, button7]:
+    if user.text in [button2, button3, button4, button7]:
+        order_list_keyboard = []
+
+        def lol(lst, sz):
+            return [lst[i:i + sz] for i in range(0, len(lst), sz)]
         if user.text == button2:
             orders_filter = [False, False, False]
             orders = [i[0] for i in cur.execute("SELECT pk FROM orders WHERE courier_id ISNULL "
@@ -271,38 +317,38 @@ def admin_menu(update: Update, context: CallbackContext) -> int:
         elif user.text == button3:
             orders_filter = [False, False, True]
             orders = [i[0] for i in cur.execute("SELECT pk, courier_id FROM orders WHERE courier_id ISNULL "
-                                                  "AND completed = ? AND canceled = ? "
-                                                  "AND purchased = ?", orders_filter).fetchall()]
+                                                "AND completed = ? AND canceled = ? "
+                                                "AND purchased = ?", orders_filter).fetchall()]
         else:
             orders_filter = [False, False]
             orders = [i[0] for i in cur.execute("SELECT pk FROM orders WHERE completed = ?"
                                                 " AND canceled = ?", orders_filter).fetchall()]
         if orders:
             order_list = [str(order_id) for order_id in orders]
-            lol = lambda lst, sz: [lst[i:i + sz] for i in range(0, len(lst), sz)]
             line_len = math.ceil(len(order_list) / math.ceil(len(order_list) / 12))
             order_list_keyboard = lol(order_list, line_len)
             order_list_keyboard.append([button16])
             reply = 'Список замовлень 👇'
             reply_markup = ReplyKeyboardMarkup(order_list_keyboard, one_time_keyboard=True, resize_keyboard=True)
             method: int = COURIER_LIST if user.text in [button2, button3] else CANCELED
+
+        elif user.text == button4:
+            uncounted_filter = [False, True, False, False]
+            uncounted = [i[0] for i in cur.execute("SELECT pk FROM orders WHERE counted = ? AND purchased = ?"
+                                                   " AND completed = ? AND canceled = ?", uncounted_filter).fetchall()]
+            if uncounted:
+                line_len = math.ceil(len(uncounted) / math.ceil(len(uncounted) / 12))
+                order_list_keyboard = lol(uncounted, line_len)
+            order_list_keyboard.append([button16])
+            reply = 'Список замовлень 👇' if uncounted else 'Тут немає роботи'
+            method: int = START_COUNT if uncounted else ADMIN
+            reply_markup = ReplyKeyboardMarkup(order_list_keyboard, one_time_keyboard=True, resize_keyboard=True) \
+                if uncounted else admin_markup
         else:
             reply = 'Немає замовлень'
             reply_markup = admin_markup
             method: int = ADMIN
-    elif user.text == button4:
-        uncounted_filter = [False, True, False, False]
-        uncounted = [i[0] for i in cur.execute("SELECT pk FROM orders WHERE counted = ? AND purchased = ?"
-                                               " AND completed = ? AND canceled = ?", uncounted_filter).fetchall()]
-        if uncounted:
-            lol = lambda lst, sz: [lst[i:i + sz] for i in range(0, len(lst), sz)]
-            line_len = math.ceil(len(uncounted) / math.ceil(len(uncounted) / 12))
-            order_list_keyboard = lol(uncounted, line_len)
-        order_list_keyboard.append([button16])
-        reply = 'Список замовлень 👇' if uncounted else 'Тут немає роботи'
-        method: int = START_COUNT if uncounted else ADMIN
-        reply_markup = ReplyKeyboardMarkup(order_list_keyboard, one_time_keyboard=True, resize_keyboard=True)\
-            if uncounted else admin_markup
+
     else:
         BLACK_LIST = blacklist_update()
         reply = 'BLACKLIST оновлено'
@@ -319,21 +365,23 @@ def courier_list(update: Update, context: CallbackContext) -> int:
     log('Admin', 'Chose order', user)
     with sq.connect("database.db") as database:
         cur = database.cursor()
-    courier_list_filter = [True, True]
-    courier_list = cur.execute("SELECT pk, name FROM couriers WHERE is_free = ?"
-                               " AND ready = ?", courier_list_filter).fetchall()
-    if courier_list and user.text != button16:
+    couriers_filter = [True, True]
+    couriers = cur.execute("SELECT pk, name FROM couriers WHERE is_free = ?"
+                           " AND ready = ?", couriers_filter).fetchall()
+    if couriers and user.text != button16:
         import math
+
+        def lol(lst, sz):
+            return [lst[i:i + sz] for i in range(0, len(lst), sz)]
         data_dict[from_user.id]['order_id'] = user.text
-        pk_list = [str(pk[0]) for pk in courier_list]
-        lol = lambda lst, sz: [lst[i:i + sz] for i in range(0, len(lst), sz)]
+        pk_list = [str(pk[0]) for pk in couriers]
         line_len = math.ceil(len(pk_list) / math.ceil(len(pk_list) / 12))
         order_list_keyboard = lol(pk_list, line_len)
         order_list_keyboard.append([button16])
-        reply = '\n'.join([f'{i[0]}: {i[1]}' for i in courier_list])
+        reply = '\n'.join([f'{i[0]}: {i[1]}' for i in couriers])
         method: int = SEND_COURIER
         reply_markup = ReplyKeyboardMarkup(order_list_keyboard,
-        one_time_keyboard=True, resize_keyboard=True)
+                                           one_time_keyboard=True, resize_keyboard=True)
     else:
         reply = '↩️' if user.text == button16 else "Немає вільних кур'єрів"
         method: int = ADMIN
@@ -457,14 +505,15 @@ def cancel_order(update: Update, context: CallbackContext) -> int:
     else:
         with sq.connect("database.db") as database:
             cur = database.cursor()
-        client_id, client_name = cur.execute("SELECT user_id, full_name FROM orders WHERE pk = ?", [user.text]).fetchone()[0]
+        client_id, client_name = \
+            cur.execute("SELECT user_id, full_name FROM orders WHERE pk = ?", [user.text]).fetchone()[0]
         data_dict[from_user.id]['cancel'] = [client_id, client_name]
         update_orders_filter = [True, user.text]
         cur.execute("UPDATE orders SET canceled = ? WHERE pk = ?", update_orders_filter)
         database.commit()
         reply = f'Замовлення # {user.text} скасовано, причина скасування:'
         method: int = CANCEL_CALLBACK
-        reply_markup = None
+        reply_markup = ReplyKeyboardRemove()
     user.reply_text(reply, reply_markup=reply_markup)
 
     return method
@@ -713,39 +762,18 @@ def client_menu(update: Update, context: CallbackContext) -> int or None:
         with sq.connect("database.db") as database:
             cur = database.cursor()
         prices_filter = [1, True, False, from_user.id, False, False]
-        prices = cur.execute("SELECT products_price, delivery_price, pk FROM orders "
-                             "WHERE payment_type = ? AND counted = ? AND completed = ? "
-                             "AND user_id = ? AND paid = ? AND canceled = ?", prices_filter).fetchall()
+        prices: list = cur.execute("SELECT products_price, delivery_price, pk FROM orders "
+                                   "WHERE payment_type = ? AND counted = ? AND completed = ? "
+                                   "AND user_id = ? AND paid = ? AND canceled = ?", prices_filter).fetchall()
         if prices:
             data_dict[from_user.id]['pay_type']: int = 1
             for price in prices:
+                price: list
                 data_dict[from_user.id]['order']: int = price[2]
                 chat_id: int = user.chat_id
-                title = "Зразок оплати"
-                description = f'Замовлення #{price[2]} \n' \
-                              f'Вартість продукції: {price[0] / 100} грн \n' \
-                              f'Вартість доставки: {price[1] / 100} грн \n'
-                # select a payload just for you to recognize its the donation from your bot
-                payload = "Custom-Payload"
-                # In order to get a provider_token see https://core.telegram.org/bots/payments#getting-a-token
-                provider_token = public_liqpay_sandbox
-                currency = "UAH"
-                # price in dollars
-                # price * 100 so as to include 2 decimal points
-                prices = [LabeledPrice('Продукція', price[0]), LabeledPrice('Доставка', price[1])]
-
-                log_text = f'Payment order: {prices[2]}'
-                log('Client', 'Tip', user, manual=log_text)
-
-                # optionally pass need_name=True, need_phone_number=True,
-                # need_email=True, need_shipping_address=True, is_flexible=True
-                context.bot.send_invoice(
-                    chat_id, title, description, payload, provider_token, currency, prices
+                reply, reply_markup, method = pay_preprocessor(
+                    user, price[2], chat_id, prices[:1], 1, context
                 )
-
-            reply = 'Здійснюється процес оплати...'
-            reply_markup = ReplyKeyboardRemove()
-            method: None = None
         else:
             reply = 'Немає розрахованих платежів'
             method: int = CLIENT
@@ -844,10 +872,6 @@ def get_contact(update: Update, context: CallbackContext) -> int:
     data_dict[from_user.id][meta].append(message)
     data_dict[from_user.id]['db'].append(db)
 
-    buttons = [
-        ['Безготівкова оплата'],
-        ['Оплата готівкою']
-    ]
     user.reply_text(
         ' 💸 Будь-ласка, оберіть зручний для вас вид оплати:',
         reply_markup=payment_type_markup
@@ -927,12 +951,12 @@ def tip(update: Update, context: CallbackContext) -> int:
             method: int = TIP
             log('Client', 'Tip', user, manual=f'ValueError: {user.text}')
         else:
-            if 3 > int(user.text) or int(user.text) > 27000:
-                reply = f'Ви ввели "{user.text}", а потрібно ввети ціле число від 3.00 до 27\'000.00'
+            if 3 > value or value > 27000:
+                reply = f'Ви ввели "{value}", а потрібно ввети ціле число від 3.00 до 27\'000.00'
                 reply_markup = back_markup
                 method: int = TIP
                 log('Client', 'Tip', user, manual=f'Aboard integer: {user.text}')
-            elif int(user.text) == 0:
+            elif value == 0:
                 order_id: int = data_dict[from_user.id]['order']
                 with sq.connect("database.db") as database:
                     cur = database.cursor()
@@ -948,26 +972,9 @@ def tip(update: Update, context: CallbackContext) -> int:
                 data_dict[from_user.id]['tip_value']: int = value
                 order_id: int = data_dict[from_user.id]['order']
                 chat_id: int = user.chat_id
-                title = "Зразок оплати"
-                description = f'Чайові до замовлення #{order_id}' if order_id else 'Чайові для власника сервісу'
-                # select a payload just for you to recognize its the donation from your bot
-                payload = "Custom-Payload"
-                # In order to get a provider_token see https://core.telegram.org/bots/payments#getting-a-token
-                provider_token = public_liqpay_sandbox
-                currency = "UAH"
-                # price in dollars
-                # price * 100 so as to include 2 decimal points
-                prices = [LabeledPrice('Чайові', value * 100)]
-                # optionally pass need_name=True, need_phone_number=True,
-                # need_email=True, need_shipping_address=True, is_flexible=True
-                context.bot.send_invoice(
-                    chat_id, title, description, payload, provider_token, currency, prices
+                reply, reply_markup, method = pay_preprocessor(
+                    user, order_id, chat_id, value, 2, context
                 )
-                reply = 'Здійснюється процес оплати...'
-                reply_markup = ReplyKeyboardRemove()
-                method: int = CLIENT
-                log_text = f'Tip payment: {user.text}, order: {order_id}' if order_id else f'Tip payment: {user.text}'
-                log('Client', 'Tip', user, manual=log_text)
     user.reply_text(reply, reply_markup=reply_markup)
     return method
 
@@ -998,8 +1005,8 @@ def successful_payment_callback(update: Update, context: CallbackContext) -> Non
         if courier_id:
             text = f'Замовлення #{order_id} оплачено'
             courier_status = cur.execute(f"SELECT telegram_id FROM couriers WHERE is_free = ?"
-                                 " AND telegram_id = ?", [False, courier_id]).fetchone()[0]
-            user.bot.send_message(text=text, chat_id=courier_id, 
+                                         " AND telegram_id = ?", [False, courier_id]).fetchone()[0]
+            user.bot.send_message(text=text, chat_id=courier_id,
                                   reply_markup=delivery_markup if courier_status else ReplyKeyboardRemove())
     elif data_dict[from_user.id]['pay_type'] == 2:
         tip_value: int = data_dict[from_user.id]['tip_value']
@@ -1014,6 +1021,8 @@ def successful_payment_callback(update: Update, context: CallbackContext) -> Non
             user.bot.send_message(text=text, chat_id=owner_id)
     database.commit()
     user.reply_text("Дякую за оплату!", reply_markup=client_markup)
+
+    return CLIENT
 
 
 def help_me(update: Update, context: CallbackContext) -> int:
