@@ -99,9 +99,9 @@ def courier_problem_module(user, from_user, order_id, stage):
         cur = database.cursor()
     if order_id:
         update_orders_filter = [None, order_id]
-        cur.execute(f"UPDATE orders SET courier_id = ? WHERE pk = ?", update_orders_filter)
+        cur.execute("UPDATE orders SET courier_id = ? WHERE pk = ?", update_orders_filter)
     update_couriers_filter = [True, False, from_user.id]
-    cur.execute(f"UPDATE couriers SET is_free = ?, ready = ? WHERE telegram_id = ?", update_couriers_filter)
+    cur.execute("UPDATE couriers SET is_free = ?, ready = ? WHERE telegram_id = ?", update_couriers_filter)
     database.commit()
     return reply, reply_markup, method
 
@@ -250,13 +250,13 @@ def start(update: Update, context: CallbackContext) -> int or None:
     user, from_user = base(update.message)
     with sq.connect("database.db") as database:
         cur = database.cursor()
-    db_user_id = cur.execute(f"SELECT id FROM users WHERE id = ?", [from_user.id]).fetchone()
+    db_user_id = cur.execute("SELECT id FROM users WHERE id = ?", [from_user.id]).fetchone()
     user_data = (from_user.id, from_user.full_name, from_user.username)
 
     if not db_user_id:
         cur.execute("INSERT INTO users (id, full_name, username) VALUES(?, ?, ?);", user_data)
     else:
-        cur.execute(f"UPDATE users SET full_name = ?, username = ? WHERE id = '{from_user.id}'", user_data[1:])
+        cur.execute("UPDATE users SET full_name = ?, username = ? WHERE id = '{from_user.id}'", user_data[1:])
 
     database.commit()
 
@@ -941,7 +941,7 @@ def tip(update: Update, context: CallbackContext) -> int:
         reply = '↩️'
         reply_markup = client_markup
         method: int = CLIENT
-        log('Client', 'Tip', user, manual=f'Turn back')
+        log('Client', 'Tip', user, manual='Turn back')
     else:
         try:
             value = int(user.text)
@@ -1000,11 +1000,11 @@ def successful_payment_callback(update: Update, context: CallbackContext) -> Non
         courier_id = cur.execute(f"SELECT courier_id FROM orders WHERE user_id = {from_user.id}"
                                  f" AND pk = {order_id}").fetchone()[0]
         update_orders_filter = [True, from_user.id, order_id]
-        cur.execute(f"UPDATE orders SET paid = ? WHERE user_id = ? AND pk = ?", update_orders_filter)
+        cur.execute("UPDATE orders SET paid = ? WHERE user_id = ? AND pk = ?", update_orders_filter)
         database.commit()
         if courier_id:
             text = f'Замовлення #{order_id} оплачено'
-            courier_status = cur.execute(f"SELECT telegram_id FROM couriers WHERE is_free = ?"
+            courier_status = cur.execute("SELECT telegram_id FROM couriers WHERE is_free = ?"
                                          " AND telegram_id = ?", [False, courier_id]).fetchone()[0]
             user.bot.send_message(text=text, chat_id=courier_id,
                                   reply_markup=delivery_markup if courier_status else ReplyKeyboardRemove())
@@ -1097,7 +1097,7 @@ def main() -> None:
                                       get_location)],
             CONTACT: [MessageHandler(Filters.contact & ~Filters.command | Filters.text & ~Filters.command,
                                      get_contact)],
-            PAY_TYPE: [MessageHandler(Filters.regex(f'^(Безготівкова оплата|Оплата готівкою)$'), type_of_payment)],
+            PAY_TYPE: [MessageHandler(Filters.regex('^(Безготівкова оплата|Оплата готівкою)$'), type_of_payment)],
             HELP: [MessageHandler(Filters.regex(f'^({button20})$'), help_me)],
         },
         fallbacks=[CommandHandler('stop', stop)],
