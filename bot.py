@@ -150,6 +150,10 @@ def pay_preprocessor(user, order_id, chat_id, pay_value, pay_type, context):
     return reply, reply_markup, method
 
 
+def lol(lst, sz):
+    return [lst[i:i + sz] for i in range(0, len(lst), sz)]
+
+
 CLIENT, ORDER, NAME, LOCATION, CONTACT, HELP, ADMIN, COURIER, START_COUNT, PAY_TYPE, COURIER_LIST, \
  SEND_COURIER, COURIER_READY, PURCHASE, COURIER_PROBLEM, DELIVERY, CANCELED, CANCEL_CALLBACK, REVIEW, \
  END_COUNT, TIP, CONFIRM_PAY = range(22)
@@ -306,8 +310,6 @@ def admin_menu(update: Update, context: CallbackContext) -> int:
     if user.text in [button2, button3, button4, button7]:
         order_list_keyboard = []
 
-        def lol(lst, sz):
-            return [lst[i:i + sz] for i in range(0, len(lst), sz)]
         if user.text == button2:
             orders_filter = [False, False, False]
             orders = [i[0] for i in cur.execute("SELECT pk FROM orders WHERE courier_id ISNULL "
@@ -319,10 +321,17 @@ def admin_menu(update: Update, context: CallbackContext) -> int:
             orders = [i[0] for i in cur.execute("SELECT pk, courier_id FROM orders WHERE courier_id ISNULL "
                                                 "AND completed = ? AND canceled = ? "
                                                 "AND purchased = ?", orders_filter).fetchall()]
-        else:
+
+        elif user.text == button7:
             orders_filter = [False, False]
             orders = [i[0] for i in cur.execute("SELECT pk FROM orders WHERE completed = ?"
                                                 " AND canceled = ?", orders_filter).fetchall()]
+
+        else:
+            uncounted_filter = [False, True, False, False]
+            orders = [i[0] for i in cur.execute("SELECT pk FROM orders WHERE counted = ? AND purchased = ?"
+                                                " AND completed = ? AND canceled = ?", uncounted_filter).fetchall()]
+
         if orders:
             order_list = [str(order_id) for order_id in orders]
             line_len = math.ceil(len(order_list) / math.ceil(len(order_list) / 12))
@@ -330,20 +339,13 @@ def admin_menu(update: Update, context: CallbackContext) -> int:
             order_list_keyboard.append([button16])
             reply = 'Список замовлень 👇'
             reply_markup = ReplyKeyboardMarkup(order_list_keyboard, one_time_keyboard=True, resize_keyboard=True)
-            method: int = COURIER_LIST if user.text in [button2, button3] else CANCELED
+            if user.text in [button2, button3]:
+                method: int = COURIER_LIST
+            elif user.text == button4:
+                method: int = START_COUNT
+            else:
+                method: int = CANCELED
 
-        elif user.text == button4:
-            uncounted_filter = [False, True, False, False]
-            uncounted = [i[0] for i in cur.execute("SELECT pk FROM orders WHERE counted = ? AND purchased = ?"
-                                                   " AND completed = ? AND canceled = ?", uncounted_filter).fetchall()]
-            if uncounted:
-                line_len = math.ceil(len(uncounted) / math.ceil(len(uncounted) / 12))
-                order_list_keyboard = lol(uncounted, line_len)
-            order_list_keyboard.append([button16])
-            reply = 'Список замовлень 👇' if uncounted else 'Тут немає роботи'
-            method: int = START_COUNT if uncounted else ADMIN
-            reply_markup = ReplyKeyboardMarkup(order_list_keyboard, one_time_keyboard=True, resize_keyboard=True) \
-                if uncounted else admin_markup
         else:
             reply = 'Немає замовлень'
             reply_markup = admin_markup
@@ -506,7 +508,7 @@ def cancel_order(update: Update, context: CallbackContext) -> int:
         with sq.connect("database.db") as database:
             cur = database.cursor()
         client_id, client_name = cur.execute("SELECT user_id, full_name FROM orders "
-                                             "WHERE pk = ?", [user.text]).fetchone()
+                                             "WHERE pk = ?", [user.text]).fetchone()[0]
         data_dict[from_user.id]['cancel'] = [client_id, client_name]
         update_orders_filter = [True, user.text]
         cur.execute("UPDATE orders SET canceled = ? WHERE pk = ?", update_orders_filter)
