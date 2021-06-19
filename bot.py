@@ -3,6 +3,8 @@ import sqlite3 as sq
 import time
 import os
 
+from math import ceil
+
 from telegram import (
     ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
@@ -108,7 +110,6 @@ def courier_problem_module(user, from_user, order_id, stage):
 
 # Pay function
 def pay_preprocessor(user, order_id, chat_id, pay_value, pay_type, context):
-
     if pay_type == 1:
         title = "Оплата замовлення"
         description = f'Замовлення #{order_id} \n' \
@@ -154,9 +155,16 @@ def lol(lst, sz):
     return [lst[i:i + sz] for i in range(0, len(lst), sz)]
 
 
+def keys_format(keys_list):
+    line_len = ceil(len(keys_list) / ceil(len(keys_list) / 12))
+    ready_keyboard = lol(keys_list, line_len)
+    ready_keyboard.append([button16])
+    return ready_keyboard
+
+
 CLIENT, ORDER, NAME, LOCATION, CONTACT, HELP, ADMIN, COURIER, START_COUNT, PAY_TYPE, COURIER_LIST, \
- SEND_COURIER, COURIER_READY, PURCHASE, COURIER_PROBLEM, DELIVERY, CANCELED, CANCEL_CALLBACK, REVIEW, \
- END_COUNT, TIP, CONFIRM_PAY = range(22)
+SEND_COURIER, COURIER_READY, PURCHASE, COURIER_PROBLEM, DELIVERY, CANCELED, CANCEL_CALLBACK, REVIEW, \
+END_COUNT, TIP, CONFIRM_PAY = range(22)
 
 button0 = '🍲 Замовлення'
 button1 = '🆘 Підтримка'
@@ -299,7 +307,6 @@ def start(update: Update, context: CallbackContext) -> int or None:
 
 
 def admin_menu(update: Update, context: CallbackContext) -> int:
-    import math
     user, from_user = base(update.message)
     log('Admin', 'Admin menu', user)
     data_dict[from_user.id] = {'order_id': '', 'count': '', 'cancel': ''}
@@ -334,9 +341,7 @@ def admin_menu(update: Update, context: CallbackContext) -> int:
 
         if orders:
             order_list = [str(order_id) for order_id in orders]
-            line_len = math.ceil(len(order_list) / math.ceil(len(order_list) / 12))
-            order_list_keyboard = lol(order_list, line_len)
-            order_list_keyboard.append([button16])
+            order_list_keyboard = keys_format(order_list)
             reply = 'Список замовлень 👇'
             reply_markup = ReplyKeyboardMarkup(order_list_keyboard, one_time_keyboard=True, resize_keyboard=True)
             if user.text in [button2, button3]:
@@ -370,20 +375,16 @@ def courier_list(update: Update, context: CallbackContext) -> int:
     couriers_filter = [True, True]
     couriers = cur.execute("SELECT pk, name FROM couriers WHERE is_free = ?"
                            " AND ready = ?", couriers_filter).fetchall()
-    if couriers and user.text != button16:
-        import math
 
-        def lol(lst, sz):
-            return [lst[i:i + sz] for i in range(0, len(lst), sz)]
+    if couriers and user.text != button16:
         data_dict[from_user.id]['order_id'] = user.text
         pk_list = [str(pk[0]) for pk in couriers]
-        line_len = math.ceil(len(pk_list) / math.ceil(len(pk_list) / 12))
-        order_list_keyboard = lol(pk_list, line_len)
-        order_list_keyboard.append([button16])
+        order_list_keyboard = keys_format(pk_list)
         reply = '\n'.join([f'{i[0]}: {i[1]}' for i in couriers])
         method: int = SEND_COURIER
-        reply_markup = ReplyKeyboardMarkup(order_list_keyboard,
-                                           one_time_keyboard=True, resize_keyboard=True)
+        reply_markup = ReplyKeyboardMarkup(
+            order_list_keyboard, one_time_keyboard=True, resize_keyboard=True
+        )
     else:
         reply = '↩️' if user.text == button16 else "Немає вільних кур'єрів"
         method: int = ADMIN
@@ -505,10 +506,11 @@ def cancel_order(update: Update, context: CallbackContext) -> int:
         method: int = ADMIN
         reply_markup = admin_markup
     else:
+        print(user.text, type(user.text))
         with sq.connect("database.db") as database:
             cur = database.cursor()
         client_id, client_name = cur.execute("SELECT user_id, full_name FROM orders "
-                                             "WHERE pk = ?", [user.text]).fetchone()[0]
+                                             "WHERE pk = ?", [str(user.text)]).fetchone()[0]
         data_dict[from_user.id]['cancel'] = [client_id, client_name]
         update_orders_filter = [True, user.text]
         cur.execute("UPDATE orders SET canceled = ? WHERE pk = ?", update_orders_filter)
