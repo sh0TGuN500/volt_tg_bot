@@ -505,8 +505,8 @@ def cancel_order(update: Update, context: CallbackContext) -> int:
     else:
         with sq.connect("database.db") as database:
             cur = database.cursor()
-        client_id, client_name = \
-            cur.execute("SELECT user_id, full_name FROM orders WHERE pk = ?", [user.text]).fetchone()[0]
+        client_id, client_name = cur.execute("SELECT user_id, full_name FROM orders "
+                                             "WHERE pk = ?", [user.text]).fetchone()[0]
         data_dict[from_user.id]['cancel'] = [client_id, client_name]
         update_orders_filter = [True, user.text]
         cur.execute("UPDATE orders SET canceled = ? WHERE pk = ?", update_orders_filter)
