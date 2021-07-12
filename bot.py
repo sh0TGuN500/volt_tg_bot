@@ -180,15 +180,15 @@ button10 = 'Придбав товари'
 button11 = 'Замовлення виконав'
 button12 = 'Оновити BLACKLIST'
 button13 = 'Замовлення сформоване'
-button14 = 'Статус оплати'
+ # button14 = 'Статус оплати'
 button15 = 'Доставку виконав'
 button16 = '<< Назад'
-button17 = '💸 Оплатити замовлення'
-button18 = '🍵 Чайові'
+button17 = '💸 Оплатити замовлення(в розробці)'
+button18 = '🍵 Чайові(в розробці)'
 button19 = '⭐ Залишити відгук до останнього замовлення'
 button20 = 'Відправити повідомлення'
 button21 = 'Оплату отримав'
-button22 = 'Безготівкова оплата'
+button22 = 'Безготівкова оплата(в розробці)'
 button23 = 'Оплата готівкою'
 
 client_keyboard = [
@@ -742,7 +742,7 @@ def client_menu(update: Update, context: CallbackContext) -> int or None:
     data_dict[from_user.id] = {'text': [message], 'forward': [], 'db': [from_user.id],
                                'check_message': user.message_id, 'order': 0, 'pay_type': 0, 'tip_value': 0}
     if user.text == button0:
-        reply = '🛍️ Введіть продукцію, яку би Ви хотіли замовити.'
+        reply = '🛍️ Введіть продукцію (в деталях: конкретна назва і кількість), яку би Ви хотіли замовити.'
         method: int = NAME
         reply_markup = ReplyKeyboardRemove()
     elif user.text == button19:
@@ -887,7 +887,7 @@ def type_of_payment(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
     log('Client', 'Pay type', user, sf=False)
     message = 'Вид оплати: ' + user.text
-    if user.text == 'Безготівкова оплата':
+    if user.text == button22:
         db = True
     else:
         db = False
@@ -1075,7 +1075,7 @@ def main() -> None:
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
-            CLIENT: [MessageHandler(Filters.regex(f'^({button0}|{button1}|{button19}|{button17}|{button18})$'),
+            CLIENT: [MessageHandler(Filters.regex(f'^({button0}|{button1}|{button19})$'), # |{button17}|{button18}
                                     client_menu)],
             ADMIN: [MessageHandler(Filters.regex(f'^({button2}|{button3}|{button4}|{button7}|{button12})$'),
                                    admin_menu)],
@@ -1100,7 +1100,7 @@ def main() -> None:
                                       get_location)],
             CONTACT: [MessageHandler(Filters.contact & ~Filters.command | Filters.text & ~Filters.command,
                                      get_contact)],
-            PAY_TYPE: [MessageHandler(Filters.regex('^(Безготівкова оплата|Оплата готівкою)$'), type_of_payment)],
+            PAY_TYPE: [MessageHandler(Filters.regex(f'^({button23})$'), type_of_payment)], # regex(f'^({button22}|{button23})$')
             HELP: [MessageHandler(Filters.regex(f'^({button20})$'), help_me)],
         },
         fallbacks=[CommandHandler('stop', stop)],
