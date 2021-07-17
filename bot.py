@@ -83,9 +83,14 @@ def log(role, status, user, manual=None, sf=True) -> None:
         message = space_filter(user.text)
     else:
         message: str = user.text if user.text else user.location
-    user_data = (role, user.from_user.id, user.from_user.full_name,
-                 user.from_user.username, status, message)
-    logger.info('{0}: |{1}| {2}({3}): {4}: {5}'.format(*user_data))
+    if user.from_user.username:
+        user_data = (role, user.from_user.id, user.from_user.full_name,
+                     user.from_user.username, status, message)
+        logger.info('{0}: |{1}| {2}({3}): {4}: {5}'.format(*user_data))
+    else:
+        user_data = (role, user.from_user.id, user.from_user.full_name, 
+                     status, message)
+        logger.info('{0}: |{1}| {2}: {3}: {4}'.format(*user_data))
 
 
 # Courier problem-button part
