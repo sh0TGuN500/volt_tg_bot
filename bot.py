@@ -202,6 +202,11 @@ client_keyboard = [
     [button19]
 ]
 
+help_keyboard = [
+    [button20],
+    [button16]
+]
+
 payment_type_keyboard = [
     [button22],
     [button23]
@@ -239,7 +244,7 @@ client_markup = ReplyKeyboardMarkup(client_keyboard, one_time_keyboard=True, res
 
 payment_type_markup = ReplyKeyboardMarkup(payment_type_keyboard, one_time_keyboard=True, resize_keyboard=True)
 
-help_markup = ReplyKeyboardMarkup([[button20]], one_time_keyboard=True, resize_keyboard=True)
+help_markup = ReplyKeyboardMarkup(help_keyboard, one_time_keyboard=True, resize_keyboard=True)
 
 admin_markup = ReplyKeyboardMarkup(admin_keyboard, one_time_keyboard=True, resize_keyboard=True)
 
@@ -1035,20 +1040,26 @@ def successful_payment_callback(update: Update, context: CallbackContext) -> Non
 
 def help_me(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
-    check_message = data_dict[from_user.id]['check_message']
-    text = data_dict[from_user.id]['text']
-    message = f'{text[0]}\n\n{button1}\n\nid: {from_user.id}'
-    log('Client', 'Support', user, manual='Support message')
-    for chat in forward_to:
-        user.bot.send_message(chat_id=chat, text=message)
-        message_id = check_message + 2
-        while user.message_id > message_id > check_message + 1:
-            try:
-                user.bot.forward_message(from_chat_id=user.chat_id, chat_id=chat, message_id=message_id)
-            except BadRequest:
-                break
-            message_id += 1
-    user.reply_text('Очікуйте відповідь! ☎️', reply_markup=client_markup)
+    if user.text == button16:
+        reply_text = '↩️'
+        log_text = 'Support back'
+    else:    
+        check_message = data_dict[from_user.id]['check_message']
+        text = data_dict[from_user.id]['text']
+        message = f'{text[0]}\n\n{button1}\n\nid: {from_user.id}'
+        log_text = 'Support message'
+        reply_text = 'Очікуйте відповідь! ☎️'
+        for chat in forward_to:
+            user.bot.send_message(chat_id=chat, text=message)
+            message_id = check_message + 2
+            while user.message_id > message_id > check_message + 1:
+                try:
+                    user.bot.forward_message(from_chat_id=user.chat_id, chat_id=chat, message_id=message_id)
+                except BadRequest:
+                    break
+                message_id += 1
+    log('Client', 'Support', user, manual=l)
+    user.reply_text(reply_text, reply_markup=client_markup)
 
     return CLIENT
 
@@ -1106,7 +1117,7 @@ def main() -> None:
             CONTACT: [MessageHandler(Filters.contact & ~Filters.command | Filters.text & ~Filters.command,
                                      get_contact)],
             PAY_TYPE: [MessageHandler(Filters.regex(f'^({button23})$'), type_of_payment)], # regex(f'^({button22}|{button23})$')
-            HELP: [MessageHandler(Filters.regex(f'^({button20})$'), help_me)],
+            HELP: [MessageHandler(Filters.regex(f'^({button20}|{button16})$'), help_me)],
         },
         fallbacks=[CommandHandler('stop', stop)],
         run_async=True)
