@@ -29,8 +29,8 @@ public_liqpay_sandbox = os.environ['public_liqpay_sandbox']
 bot_dev = int(os.environ['bot_dev'])
 bot_owner = int(os.environ['bot_owner'])
 
-
 # from owner_data import *
+
 
 # BLACKLIST and couriers update and optimization
 def blacklist_update(courier_reload=False) -> list:
@@ -168,8 +168,8 @@ def keys_format(keys_list):
 
 
 CLIENT, ORDER, NAME, LOCATION, CONTACT, HELP, ADMIN, COURIER, START_COUNT, PAY_TYPE, COURIER_LIST, \
- SEND_COURIER, COURIER_READY, PURCHASE, COURIER_PROBLEM, DELIVERY, CANCELED, CANCEL_CALLBACK, REVIEW, \
- END_COUNT, TIP, CONFIRM_PAY = range(22)
+SEND_COURIER, COURIER_READY, PURCHASE, COURIER_PROBLEM, DELIVERY, CANCELED, CANCEL_CALLBACK, REVIEW, \
+END_COUNT, TIP, CONFIRM_PAY = range(22)
 
 button0 = '🍲 Замовлення'
 button1 = '🆘 Підтримка'
@@ -188,12 +188,12 @@ button13 = 'Замовлення сформоване'
 # button14 = 'Статус оплати'
 button15 = 'Доставку виконав'
 button16 = '<< Назад'
-button17 = '💸 Оплатити замовлення (в розробці)'
-button18 = '🍵 Чайові (в розробці)'
+button17 = '💸 Оплатити замовлення'
+button18 = '🍵 Чайові'
 button19 = '⭐ Залишити відгук до останнього замовлення'
 button20 = 'Відправити повідомлення'
 button21 = 'Оплату отримав'
-button22 = 'Безготівкова оплата (в розробці)'
+button22 = 'Безготівкова оплата'
 button23 = 'Оплата готівкою'
 
 client_keyboard = [
@@ -1095,7 +1095,7 @@ def stop(update: Update, context: CallbackContext) -> int:
 
 def main() -> None:
     # Create the Updater and pass it your bot's token.
-    updater = Updater(BOT_TOKEN)
+    updater = Updater(BOT_TOKEN)  #
 
     # Get the dispatcher to register handlers
     dispatcher = updater.dispatcher
