@@ -1058,7 +1058,7 @@ def help_me(update: Update, context: CallbackContext) -> int:
                 except BadRequest:
                     break
                 message_id += 1
-    log('Client', 'Support', user, manual=l)
+    log('Client', 'Support', user, manual=log_text)
     user.reply_text(reply_text, reply_markup=client_markup)
 
     return CLIENT
