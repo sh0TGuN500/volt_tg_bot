@@ -747,6 +747,7 @@ def courier_problem(update: Update, context: CallbackContext) -> int:
 
 def client_menu(update: Update, context: CallbackContext) -> int or None:
     user, from_user = base(update.message)
+    print(user.text)
     log('Client', 'Choice', user)
     message = f'{separator}\n👤 Користувач {from_user.full_name}({from_user.username}): '
     data_dict[from_user.id] = {'text': [message], 'forward': [], 'db': [from_user.id],
@@ -772,6 +773,7 @@ def client_menu(update: Update, context: CallbackContext) -> int or None:
             method: int = CLIENT
             reply_markup = client_markup
     elif user.text in [button17, button18]:
+        print(user.text)
         reply = 'В розробці'
         reply_markup = client_markup
         method: int = CLIENT
@@ -899,7 +901,9 @@ def get_contact(update: Update, context: CallbackContext) -> int:
 
 def type_of_payment(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
+    print(user.text)
     if user.text == button22:
+        print(user.text)
         log('Client', 'Pay type in development', user, sf=False)
         user.reply_text('В розробці', reply_markup=payment_type_markup)
         return PAY_TYPE
