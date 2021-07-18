@@ -88,7 +88,7 @@ def log(role, status, user, manual=None, sf=True) -> None:
                      user.from_user.username, status, message)
         logger.info('{0}: |{1}| {2}({3}): {4}: {5}'.format(*user_data))
     else:
-        user_data = (role, user.from_user.id, user.from_user.full_name, 
+        user_data = (role, user.from_user.id, user.from_user.full_name,
                      status, message)
         logger.info('{0}: |{1}| {2}: {3}: {4}'.format(*user_data))
 
@@ -168,8 +168,8 @@ def keys_format(keys_list):
 
 
 CLIENT, ORDER, NAME, LOCATION, CONTACT, HELP, ADMIN, COURIER, START_COUNT, PAY_TYPE, COURIER_LIST, \
-SEND_COURIER, COURIER_READY, PURCHASE, COURIER_PROBLEM, DELIVERY, CANCELED, CANCEL_CALLBACK, REVIEW, \
-END_COUNT, TIP, CONFIRM_PAY = range(22)
+ SEND_COURIER, COURIER_READY, PURCHASE, COURIER_PROBLEM, DELIVERY, CANCELED, CANCEL_CALLBACK, REVIEW, \
+ END_COUNT, TIP, CONFIRM_PAY = range(22)
 
 button0 = '🍲 Замовлення'
 button1 = '🆘 Підтримка'
@@ -185,7 +185,7 @@ button10 = 'Придбав товари'
 button11 = 'Замовлення виконав'
 button12 = 'Оновити BLACKLIST'
 button13 = 'Замовлення сформоване'
- # button14 = 'Статус оплати'
+# button14 = 'Статус оплати'
 button15 = 'Доставку виконав'
 button16 = '<< Назад'
 button17 = '💸 Оплатити замовлення(в розробці)'
@@ -775,43 +775,43 @@ def client_menu(update: Update, context: CallbackContext) -> int or None:
         log('Client', 'Payment in development', user, sf=False)
         user.reply_text('В розробці', reply_markup=client_markup)
         return CLIENT
-    '''elif user.text == button17:
-        with sq.connect("database.db") as database:
-            cur = database.cursor()
-        prices_filter = [1, True, False, from_user.id, False, False]
-        prices: list = cur.execute("SELECT products_price, delivery_price, pk FROM orders "
-                                   "WHERE payment_type = ? AND counted = ? AND completed = ? "
-                                   "AND user_id = ? AND paid = ? AND canceled = ?", prices_filter).fetchall()
-        if prices:
-            data_dict[from_user.id]['pay_type']: int = 1
-            for price in prices:
-                price: list
-                data_dict[from_user.id]['order']: int = price[2]
-                chat_id: int = user.chat_id
-                reply, reply_markup, method = pay_preprocessor(
-                    user, price[2], chat_id, prices[:1], 1, context
-                )
-        else:
-            reply = 'Немає розрахованих платежів'
-            method: int = CLIENT
-            reply_markup = client_markup
-    elif user.text == button18:
-        with sq.connect("database.db") as database:
-            cur = database.cursor()
-        orders_filter = [from_user.id, 0, False, True]
-        orders = cur.execute("SELECT pk FROM orders WHERE user_id = ? AND tip = ? "
-                             "AND canceled = ? AND completed = ? AND courier_id IS NOT NULL", orders_filter).fetchall()
-        if orders:
-            data_dict[from_user.id]['order']: int = orders[-1][0]
-            reply = f'Будь-ласка, введіть суму чайових в грн, до замовлення #{orders[-1][0]}'
-            reply_markup = back_markup
-            method = TIP
-        else:
-            data_dict[from_user.id]['order']: None = None
-            reply = 'Замовлень немає. Якщо бажаєте підтримати власника чашкою чаю, ' \
-                    'введіть суму чайових від 3 до 27 000 грн цілим числом:'
-            reply_markup = back_markup
-            method = TIP'''
+        '''elif user.text == button17:
+            with sq.connect("database.db") as database:
+                cur = database.cursor()
+            prices_filter = [1, True, False, from_user.id, False, False]
+            prices: list = cur.execute("SELECT products_price, delivery_price, pk FROM orders "
+                                       "WHERE payment_type = ? AND counted = ? AND completed = ? "
+                                       "AND user_id = ? AND paid = ? AND canceled = ?", prices_filter).fetchall()
+            if prices:
+                data_dict[from_user.id]['pay_type']: int = 1
+                for price in prices:
+                    price: list
+                    data_dict[from_user.id]['order']: int = price[2]
+                    chat_id: int = user.chat_id
+                    reply, reply_markup, method = pay_preprocessor(
+                        user, price[2], chat_id, prices[:1], 1, context
+                    )
+            else:
+                reply = 'Немає розрахованих платежів'
+                method: int = CLIENT
+                reply_markup = client_markup
+        elif user.text == button18:
+            with sq.connect("database.db") as database:
+                cur = database.cursor()
+            orders_filter = [from_user.id, 0, False, True]
+            orders = cur.execute("SELECT pk FROM orders WHERE user_id = ? AND tip = ? "
+                                 "AND canceled = ? AND completed = ? AND courier_id IS NOT NULL", orders_filter).fetchall()
+            if orders:
+                data_dict[from_user.id]['order']: int = orders[-1][0]
+                reply = f'Будь-ласка, введіть суму чайових в грн, до замовлення #{orders[-1][0]}'
+                reply_markup = back_markup
+                method = TIP
+            else:
+                data_dict[from_user.id]['order']: None = None
+                reply = 'Замовлень немає. Якщо бажаєте підтримати власника чашкою чаю, ' \
+                        'введіть суму чайових від 3 до 27 000 грн цілим числом:'
+                reply_markup = back_markup
+                method = TIP'''
     else:
         reply = 'Залиште своє повідомлення 💬\n' \
                 'Є можливість прикріпити до 10 фотографій'
@@ -1052,7 +1052,7 @@ def help_me(update: Update, context: CallbackContext) -> int:
     if user.text == button16:
         reply_text = '↩️'
         log_text = 'Support back'
-    else:    
+    else:
         check_message = data_dict[from_user.id]['check_message']
         text = data_dict[from_user.id]['text']
         message = f'{text[0]}\n\n{button1}\n\nid: {from_user.id}'
@@ -1071,9 +1071,6 @@ def help_me(update: Update, context: CallbackContext) -> int:
     user.reply_text(reply_text, reply_markup=client_markup)
 
     return CLIENT
-
-def in_dev(update: Update, context: CallbackContext) -> int:
-    user, from_user = base(update.message)
 
 
 # #################################################################################################################### #
@@ -1103,7 +1100,8 @@ def main() -> None:
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
-            CLIENT: [MessageHandler(Filters.regex(f'^({button0}|{button1}|{button19}|{button17}|{button18})$'), # |{button17}|{button18}
+            CLIENT: [MessageHandler(Filters.regex(f'^({button0}|{button1}|{button19}|{button17}|{button18})$'),
+                                    # |{button17}|{button18}
                                     client_menu)],
             ADMIN: [MessageHandler(Filters.regex(f'^({button2}|{button3}|{button4}|{button7}|{button12})$'),
                                    admin_menu)],
@@ -1128,7 +1126,8 @@ def main() -> None:
                                       get_location)],
             CONTACT: [MessageHandler(Filters.contact & ~Filters.command | Filters.text & ~Filters.command,
                                      get_contact)],
-            PAY_TYPE: [MessageHandler(Filters.regex(f'^({button22}|{button23})$'), type_of_payment)], # regex(f'^({button22}|{button23})$')
+            PAY_TYPE: [MessageHandler(Filters.regex(f'^({button22}|{button23})$'), type_of_payment)],
+            # regex(f'^({button22}|{button23})$')
             HELP: [MessageHandler(Filters.regex(f'^({button20}|{button16})$'), help_me)],
         },
         fallbacks=[CommandHandler('stop', stop)],
