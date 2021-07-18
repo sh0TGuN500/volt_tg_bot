@@ -197,9 +197,9 @@ button22 = 'Безготівкова оплата(в розробці)'
 button23 = 'Оплата готівкою'
 
 client_keyboard = [
-    [button0, button17],
-    [button18, button1],
-    [button19]
+    [button0, button1],
+    [button19],
+    [button17, button18]
 ]
 
 help_keyboard = [
@@ -771,7 +771,11 @@ def client_menu(update: Update, context: CallbackContext) -> int or None:
                     'Або ще не отримали замовлення'
             method: int = CLIENT
             reply_markup = client_markup
-    elif user.text == button17:
+    elif user.text in [button17, button18]:
+        log('Client', 'Payment in development', user, sf=False)
+        user.reply_text('В розробці', reply_markup=client_markup)
+        return CLIENT
+    '''elif user.text == button17:
         with sq.connect("database.db") as database:
             cur = database.cursor()
         prices_filter = [1, True, False, from_user.id, False, False]
@@ -807,7 +811,7 @@ def client_menu(update: Update, context: CallbackContext) -> int or None:
             reply = 'Замовлень немає. Якщо бажаєте підтримати власника чашкою чаю, ' \
                     'введіть суму чайових від 3 до 27 000 грн цілим числом:'
             reply_markup = back_markup
-            method = TIP
+            method = TIP'''
     else:
         reply = 'Залиште своє повідомлення 💬\n' \
                 'Є можливість прикріпити до 10 фотографій'
@@ -895,40 +899,45 @@ def get_contact(update: Update, context: CallbackContext) -> int:
 
 def type_of_payment(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
-    log('Client', 'Pay type', user, sf=False)
-    message = 'Вид оплати: ' + user.text
     if user.text == button22:
-        db = True
+        log('Client', 'Pay type in development', user, sf=False)
+        user.reply_text('В розробці', reply_markup=payment_type_markup)
+        return PAY_TYPE
     else:
+        log('Client', 'Pay type', user, sf=False)
+        message = 'Вид оплати: ' + user.text
+        '''if user.text == button22:
+            db = True
+        else:'''
         db = False
 
-    data_dict[from_user.id]['text'].append(message)
-    data_dict[from_user.id]['db'].append(db)
+        data_dict[from_user.id]['text'].append(message)
+        data_dict[from_user.id]['db'].append(db)
 
-    with sq.connect("database.db") as database:
-        cur = database.cursor()
+        with sq.connect("database.db") as database:
+            cur = database.cursor()
 
-    cur.execute("INSERT INTO orders (user_id, text, full_name, address, phone, payment_type) "
-                "VALUES(?, ?, ?, ?, ?, ?);", data_dict[from_user.id]['db'])
+        cur.execute("INSERT INTO orders (user_id, text, full_name, address, phone, payment_type) "
+                    "VALUES(?, ?, ?, ?, ?, ?);", data_dict[from_user.id]['db'])
 
-    database.commit()
+        database.commit()
 
-    order_id = cur.execute("SELECT pk FROM orders WHERE user_id = ?", [from_user.id]).fetchall()[::-1][0][0]
+        order_id = cur.execute("SELECT pk FROM orders WHERE user_id = ?", [from_user.id]).fetchall()[::-1][0][0]
 
-    data_dict[from_user.id]['text'].append(f'Номер замовлення: {order_id}')
+        data_dict[from_user.id]['text'].append(f'Номер замовлення: {order_id}')
 
-    for chat in forward_to:
-        user.bot.send_message(chat_id=chat, text='\n\n'.join(data_dict[from_user.id]['text']))
-        [user.bot.forward_message(from_chat_id=user.chat_id, chat_id=chat, message_id=i)
-         for i in data_dict[from_user.id]['forward']]
+        for chat in forward_to:
+            user.bot.send_message(chat_id=chat, text='\n\n'.join(data_dict[from_user.id]['text']))
+            [user.bot.forward_message(from_chat_id=user.chat_id, chat_id=chat, message_id=i)
+             for i in data_dict[from_user.id]['forward']]
 
-    user.reply_text(
-        'Дякуємо за ваше замовлення, очікуйте! ❤️\nУ разі виникнення питань, зв’яжіться з нами!'
-        f'\nНомер вашого замовлення: {order_id}',
-        reply_markup=client_markup
-    )
+        user.reply_text(
+            'Дякуємо за ваше замовлення, очікуйте! ❤️\nУ разі виникнення питань, зв’яжіться з нами!'
+            f'\nНомер вашого замовлення: {order_id}',
+            reply_markup=client_markup
+        )
 
-    return CLIENT
+        return CLIENT
 
 
 def order_review(update: Update, context: CallbackContext) -> int:
@@ -1063,6 +1072,9 @@ def help_me(update: Update, context: CallbackContext) -> int:
 
     return CLIENT
 
+def in_dev(update: Update, context: CallbackContext) -> int:
+    user, from_user = base(update.message)
+
 
 # #################################################################################################################### #
 # ####################################################=END=########################################################### #
@@ -1091,7 +1103,7 @@ def main() -> None:
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
-            CLIENT: [MessageHandler(Filters.regex(f'^({button0}|{button1}|{button19})$'), # |{button17}|{button18}
+            CLIENT: [MessageHandler(Filters.regex(f'^({button0}|{button1}|{button19}|{button17}|{button18})$'), # |{button17}|{button18}
                                     client_menu)],
             ADMIN: [MessageHandler(Filters.regex(f'^({button2}|{button3}|{button4}|{button7}|{button12})$'),
                                    admin_menu)],
@@ -1116,7 +1128,7 @@ def main() -> None:
                                       get_location)],
             CONTACT: [MessageHandler(Filters.contact & ~Filters.command | Filters.text & ~Filters.command,
                                      get_contact)],
-            PAY_TYPE: [MessageHandler(Filters.regex(f'^({button23})$'), type_of_payment)], # regex(f'^({button22}|{button23})$')
+            PAY_TYPE: [MessageHandler(Filters.regex(f'^({button22}|{button23})$'), type_of_payment)], # regex(f'^({button22}|{button23})$')
             HELP: [MessageHandler(Filters.regex(f'^({button20}|{button16})$'), help_me)],
         },
         fallbacks=[CommandHandler('stop', stop)],
