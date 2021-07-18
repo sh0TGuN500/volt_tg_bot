@@ -188,12 +188,12 @@ button13 = 'Замовлення сформоване'
 # button14 = 'Статус оплати'
 button15 = 'Доставку виконав'
 button16 = '<< Назад'
-button17 = '💸 Оплатити замовлення(в розробці)'
-button18 = '🍵 Чайові(в розробці)'
+button17 = '💸 Оплатити замовлення (в розробці)'
+button18 = '🍵 Чайові (в розробці)'
 button19 = '⭐ Залишити відгук до останнього замовлення'
 button20 = 'Відправити повідомлення'
 button21 = 'Оплату отримав'
-button22 = 'Безготівкова оплата(в розробці)'
+button22 = 'Безготівкова оплата (в розробці)'
 button23 = 'Оплата готівкою'
 
 client_keyboard = [
@@ -772,9 +772,9 @@ def client_menu(update: Update, context: CallbackContext) -> int or None:
             method: int = CLIENT
             reply_markup = client_markup
     elif user.text in [button17, button18]:
-        log('Client', 'Payment in development', user, sf=False)
-        user.reply_text('В розробці', reply_markup=client_markup)
-        return CLIENT
+        reply = 'В розробці'
+        reply_markup = client_markup
+        method: int = CLIENT
         '''elif user.text == button17:
             with sq.connect("database.db") as database:
                 cur = database.cursor()
@@ -1101,7 +1101,6 @@ def main() -> None:
         entry_points=[CommandHandler('start', start)],
         states={
             CLIENT: [MessageHandler(Filters.regex(f'^({button0}|{button1}|{button19}|{button17}|{button18})$'),
-                                    # |{button17}|{button18}
                                     client_menu)],
             ADMIN: [MessageHandler(Filters.regex(f'^({button2}|{button3}|{button4}|{button7}|{button12})$'),
                                    admin_menu)],
@@ -1127,7 +1126,6 @@ def main() -> None:
             CONTACT: [MessageHandler(Filters.contact & ~Filters.command | Filters.text & ~Filters.command,
                                      get_contact)],
             PAY_TYPE: [MessageHandler(Filters.regex(f'^({button22}|{button23})$'), type_of_payment)],
-            # regex(f'^({button22}|{button23})$')
             HELP: [MessageHandler(Filters.regex(f'^({button20}|{button16})$'), help_me)],
         },
         fallbacks=[CommandHandler('stop', stop)],
