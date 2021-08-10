@@ -1,7 +1,6 @@
 import logging
 import sqlite3 as sq
 import time
-import os
 
 from math import ceil
 
@@ -11,7 +10,8 @@ from telegram import (
     KeyboardButton,
     Update,
     LabeledPrice,
-    Message
+    Message,
+    MessageId
 )
 from telegram.error import BadRequest
 from telegram.ext import (
@@ -24,12 +24,12 @@ from telegram.ext import (
     PreCheckoutQueryHandler
 )
 
-BOT_TOKEN = os.environ['BOT_TOKEN']
-public_liqpay_sandbox = os.environ['public_liqpay_sandbox']
-bot_dev = int(os.environ['bot_dev'])
-bot_owner = int(os.environ['bot_owner'])
+# BOT_TOKEN = os.environ['BOT_TOKEN']
+# public_liqpay_sandbox = os.environ['public_liqpay_sandbox']
+# bot_dev = int(os.environ['bot_dev'])
+# bot_owner = int(os.environ['bot_owner'])
 
-# from owner_data import *
+from owner_data import *
 
 
 # BLACKLIST and couriers update and optimization
@@ -53,7 +53,7 @@ data_dict = dict()
 separator = '🔽' * 14 + '\n'
 
 # Admin list
-forward_to = [bot_dev, bot_owner]
+forward_to = [bot_dev]
 
 # Enable logging
 logging.basicConfig(
@@ -83,9 +83,10 @@ def log(role, status, user, manual=None, sf=True) -> None:
         message = space_filter(user.text)
     else:
         message: str = user.text if user.text else user.location
-    if user.from_user.username:
+    user_name = user.from_user.username
+    if user_name:
         user_data = (role, user.from_user.id, user.from_user.full_name,
-                     user.from_user.username, status, message)
+                     user_name, status, message)
         logger.info('{0}: |{1}| {2}({3}): {4}: {5}'.format(*user_data))
     else:
         user_data = (role, user.from_user.id, user.from_user.full_name,
@@ -169,7 +170,7 @@ def keys_format(keys_list):
 
 CLIENT, ORDER, NAME, LOCATION, CONTACT, HELP, ADMIN, COURIER, START_COUNT, PAY_TYPE, COURIER_LIST, \
 SEND_COURIER, COURIER_READY, PURCHASE, COURIER_PROBLEM, DELIVERY, CANCELED, CANCEL_CALLBACK, REVIEW, \
-END_COUNT, TIP, CONFIRM_PAY = range(22)
+END_COUNT, TIP, CONFIRM_PAY, DELIVERY_TIME = range(23)
 
 button0 = '🍲 Замовлення'
 button1 = '🆘 Підтримка'
@@ -747,9 +748,12 @@ def courier_problem(update: Update, context: CallbackContext) -> int:
 
 def client_menu(update: Update, context: CallbackContext) -> int or None:
     user, from_user = base(update.message)
-    print(user.text)
     log('Client', 'Choice', user)
-    message = f'{separator}\n👤 Користувач {from_user.full_name}({from_user.username}): '
+    user_name = from_user.username
+    if user_name:
+        message = f'{separator}\n👤 Користувач {from_user.full_name}({user_name}): '
+    else:
+        message = f'{separator}\n👤 Користувач {from_user.full_name}: '
     data_dict[from_user.id] = {'text': [message], 'forward': [], 'db': [from_user.id],
                                'check_message': user.message_id, 'order': 0, 'pay_type': 0, 'tip_value': 0}
     if user.text == button0:
@@ -842,6 +846,17 @@ def order(update: Update, context: CallbackContext) -> int:
     message = space_filter(user.text)
     data_dict[from_user.id]['text'].append('👩‍❤️‍👨 ПіБ: ' + message)  # [1]
     data_dict[from_user.id]['db'].append(message)
+    user.reply_text('Вкажіть орієнтовну час та дату доставки:')
+
+    return DELIVERY_TIME
+
+
+def delivery_time(update: Update, context: CallbackContext) -> int:
+    user, from_user = base(update.message)
+    log('Client', 'Delivery time', user)
+    message = space_filter(user.text)
+    data_dict[from_user.id]['text'].append('👩‍❤️‍👨 Час доставки: ' + message)  # [1]
+    data_dict[from_user.id]['db'].append(message)
     button = [[KeyboardButton('🗺️ Вказати адресу на карті', request_location=True)]]
     user.reply_text(
         "🏡 Адреса, куди доставити замовлення.",
@@ -901,9 +916,7 @@ def get_contact(update: Update, context: CallbackContext) -> int:
 
 def type_of_payment(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
-    print(user.text)
     if user.text == button22:
-        print(user.text)
         log('Client', 'Pay type in development', user, sf=False)
         user.reply_text('В розробці', reply_markup=payment_type_markup)
         return PAY_TYPE
@@ -921,8 +934,8 @@ def type_of_payment(update: Update, context: CallbackContext) -> int:
         with sq.connect("database.db") as database:
             cur = database.cursor()
 
-        cur.execute("INSERT INTO orders (user_id, text, full_name, address, phone, payment_type) "
-                    "VALUES(?, ?, ?, ?, ?, ?);", data_dict[from_user.id]['db'])
+        cur.execute("INSERT INTO orders (user_id, text, delivery_time, full_name, address, phone, payment_type) "
+                    "VALUES(?, ?, ?, ?, ?, ?, ?);", data_dict[from_user.id]['db'])
 
         database.commit()
 
@@ -1057,20 +1070,29 @@ def help_me(update: Update, context: CallbackContext) -> int:
         reply_text = '↩️'
         log_text = 'Support back'
     else:
-        check_message = data_dict[from_user.id]['check_message']
+        first_message = data_dict[from_user.id]['check_message']
         text = data_dict[from_user.id]['text']
         message = f'{text[0]}\n\n{button1}\n\nid: {from_user.id}'
         log_text = 'Support message'
         reply_text = 'Очікуйте відповідь! ☎️'
-        for chat in forward_to:
-            user.bot.send_message(chat_id=chat, text=message)
-            message_id = check_message + 2
-            while user.message_id > message_id > check_message + 1:
-                try:
-                    user.bot.forward_message(from_chat_id=user.chat_id, chat_id=chat, message_id=message_id)
-                except BadRequest:
-                    break
-                message_id += 1
+        while user.message_id == first_message + 2:
+            user.reply_text('Будь ласка, введіть повідомлення для відправки!!!', reply_markup=help_markup)
+            data_dict[from_user.id]['check_message'] += 2
+            log('Client', 'Support', user, manual='Message not exist')
+            return HELP
+        else:
+            for chat in forward_to:
+                message_id = first_message + 2
+                user.bot.send_message(chat_id=chat, text=message)
+                message_count = 0
+                while user.message_id > message_id > first_message + 1 and message_count < 11:
+                    try:
+                        user.bot.forward_message(from_chat_id=user.chat_id, chat_id=chat, message_id=message_id)
+                        message_id += 1
+                        message_count += 1
+                    except BadRequest:
+                        break
+
     log('Client', 'Support', user, manual=log_text)
     user.reply_text(reply_text, reply_markup=client_markup)
 
@@ -1104,33 +1126,39 @@ def main() -> None:
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
-            CLIENT: [MessageHandler(Filters.regex(f'^({button0}|{button1}|{button19}|{button17}|{button18})$'),
-                                    client_menu)],
-            ADMIN: [MessageHandler(Filters.regex(f'^({button2}|{button3}|{button4}|{button7}|{button12})$'),
-                                   admin_menu)],
+            CLIENT: [MessageHandler(Filters.regex(f'^({button0}|{button1}|{button19}|{button17}|{button18})$')
+                                    & ~Filters.command, client_menu)],
+            ADMIN: [MessageHandler(Filters.regex(f'^({button2}|{button3}|{button4}|{button7}|{button12})$')
+                                   & ~Filters.command, admin_menu)],
             COURIER: [MessageHandler(Filters.location & ~Filters.command, courier_menu)],
-            COURIER_READY: [MessageHandler(Filters.regex(f'^({button6}|{button7}|{button8}|{button9})$'),
-                                           ready_courier_menu)],
-            PURCHASE: [MessageHandler(Filters.regex(f'^({button13}|{button9})$'), courier_purchase)],
-            DELIVERY: [MessageHandler(Filters.regex(f'^({button15}|{button9})$'), courier_delivery)],
-            COURIER_PROBLEM: [MessageHandler(Filters.regex(f'^({button20})$'), courier_problem)],
-            CONFIRM_PAY: [MessageHandler(Filters.regex(f'^({button21}|{button9})$'), confirm_pay)],
+            COURIER_READY: [MessageHandler(Filters.regex(f'^({button6}|{button7}|{button8}|{button9})$')
+                                           & ~Filters.command, ready_courier_menu)],
+            PURCHASE: [MessageHandler(Filters.regex(f'^({button13}|{button9})$')
+                                      & ~Filters.command, courier_purchase)],
+            DELIVERY: [MessageHandler(Filters.regex(f'^({button15}|{button9})$')
+                                      & ~Filters.command, courier_delivery)],
+            COURIER_PROBLEM: [MessageHandler(Filters.regex(f'^({button20})$')
+                                             & ~Filters.command, courier_problem)],
+            CONFIRM_PAY: [MessageHandler(Filters.regex(f'^({button21}|{button9})$')
+                                         & ~Filters.command, confirm_pay)],
             START_COUNT: [MessageHandler(Filters.text & ~Filters.command, start_count)],
             END_COUNT: [MessageHandler(Filters.text & ~Filters.command, end_count)],
             REVIEW: [MessageHandler(Filters.text & ~Filters.command, order_review)],
             ORDER: [MessageHandler(Filters.text & ~Filters.command, order)],
+            DELIVERY_TIME: [MessageHandler(Filters.text & ~Filters.command, delivery_time)],
             TIP: [MessageHandler(Filters.text & ~Filters.command, tip)],
             CANCELED: [MessageHandler(Filters.text & ~Filters.command, cancel_order)],
             CANCEL_CALLBACK: [MessageHandler(Filters.text & ~Filters.command, client_cancel_callback)],
             COURIER_LIST: [MessageHandler(Filters.text & ~Filters.command, courier_list)],
             SEND_COURIER: [MessageHandler(Filters.text & ~Filters.command, send_courier)],
             NAME: [MessageHandler(Filters.text & ~Filters.command, full_name)],
-            LOCATION: [MessageHandler(Filters.location & ~Filters.command | Filters.text & ~Filters.command,
-                                      get_location)],
-            CONTACT: [MessageHandler(Filters.contact & ~Filters.command | Filters.text & ~Filters.command,
-                                     get_contact)],
-            PAY_TYPE: [MessageHandler(Filters.regex(f'^({button22}|{button23})$'), type_of_payment)],
-            HELP: [MessageHandler(Filters.regex(f'^({button20}|{button16})$'), help_me)],
+            LOCATION: [MessageHandler(Filters.location & ~Filters.command | Filters.text
+                                      & ~Filters.command, get_location)],
+            CONTACT: [MessageHandler(Filters.contact & ~Filters.command | Filters.text
+                                     & ~Filters.command, get_contact)],
+            PAY_TYPE: [MessageHandler(Filters.regex(f'^({button22}|{button23})$')
+                                      & ~Filters.command, type_of_payment)],
+            HELP: [MessageHandler(Filters.regex(f'^({button20}|{button16})$') & ~Filters.command, help_me)],
         },
         fallbacks=[CommandHandler('stop', stop)],
         run_async=True)
