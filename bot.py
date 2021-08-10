@@ -1,6 +1,7 @@
 import logging
 import sqlite3 as sq
 import time
+import os
 
 from math import ceil
 
@@ -10,8 +11,7 @@ from telegram import (
     KeyboardButton,
     Update,
     LabeledPrice,
-    Message,
-    MessageId
+    Message
 )
 from telegram.error import BadRequest
 from telegram.ext import (
@@ -24,12 +24,12 @@ from telegram.ext import (
     PreCheckoutQueryHandler
 )
 
-# BOT_TOKEN = os.environ['BOT_TOKEN']
-# public_liqpay_sandbox = os.environ['public_liqpay_sandbox']
-# bot_dev = int(os.environ['bot_dev'])
-# bot_owner = int(os.environ['bot_owner'])
+BOT_TOKEN = os.environ['BOT_TOKEN']
+public_liqpay_sandbox = os.environ['public_liqpay_sandbox']
+bot_dev = int(os.environ['bot_dev'])
+bot_owner = int(os.environ['bot_owner'])
 
-from owner_data import *
+# from owner_data import *
 
 
 # BLACKLIST and couriers update and optimization
@@ -53,7 +53,7 @@ data_dict = dict()
 separator = '🔽' * 14 + '\n'
 
 # Admin list
-forward_to = [bot_dev]
+forward_to = [bot_dev, bot_owner]
 
 # Enable logging
 logging.basicConfig(
