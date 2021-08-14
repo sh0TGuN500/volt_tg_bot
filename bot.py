@@ -53,7 +53,7 @@ data_dict = dict()
 separator = '🔽' * 14 + '\n'
 
 # Admin list
-forward_to = [bot_dev, bot_owner]
+forward_to = [bot_dev, bot_owner]  # bot_owner
 
 # Enable logging
 logging.basicConfig(
@@ -169,8 +169,8 @@ def keys_format(keys_list):
 
 
 CLIENT, ORDER, NAME, LOCATION, CONTACT, HELP, ADMIN, COURIER, START_COUNT, PAY_TYPE, COURIER_LIST, \
-SEND_COURIER, COURIER_READY, PURCHASE, COURIER_PROBLEM, DELIVERY, CANCELED, CANCEL_CALLBACK, REVIEW, \
-END_COUNT, TIP, CONFIRM_PAY, DELIVERY_TIME = range(23)
+ SEND_COURIER, COURIER_READY, PURCHASE, COURIER_PROBLEM, DELIVERY, CANCELED, CANCEL_CALLBACK, REVIEW, \
+ END_COUNT, TIP, CONFIRM_PAY, DELIVERY_TIME = range(23)
 
 button0 = '🍲 Замовлення'
 button1 = '🆘 Підтримка'
@@ -519,9 +519,9 @@ def cancel_order(update: Update, context: CallbackContext) -> int:
     else:
         with sq.connect("database.db") as database:
             cur = database.cursor()
-        client_id, client_name = cur.execute("SELECT user_id, full_name FROM orders "
-                                             "WHERE pk = ?", [user.text]).fetchone()
-        data_dict[from_user.id]['cancel'] = [client_id, client_name]
+        client_id, client_name, order_id = cur.execute("SELECT user_id, full_name, pk FROM orders "
+                                                       "WHERE pk = ?", [user.text]).fetchone()
+        data_dict[from_user.id]['cancel'] = [client_id, client_name, order_id]
         update_orders_filter = [True, user.text]
         cur.execute("UPDATE orders SET canceled = ? WHERE pk = ?", update_orders_filter)
         database.commit()
@@ -536,8 +536,8 @@ def cancel_order(update: Update, context: CallbackContext) -> int:
 def client_cancel_callback(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
     log('Admin', 'Cancel callback', user)
-    client_id, client_name = data_dict[from_user.id]['cancel']
-    message = f'Шановний {client_name},\nВаше замовлення (# замовлення) скасовано\nПричина:\n{user.text}'
+    client_id, client_name, order_id = data_dict[from_user.id]['cancel']
+    message = f'Шановний {client_name},\nВаше замовлення #{order_id} скасовано\nПричина:\n{user.text}'
     user.bot.send_message(text=message, chat_id=client_id)
     user.reply_text('Повідомлення відправленно', reply_markup=admin_markup)
 
@@ -758,7 +758,7 @@ def client_menu(update: Update, context: CallbackContext) -> int or None:
                                'check_message': user.message_id, 'order': 0, 'pay_type': 0, 'tip_value': 0}
     if user.text == button0:
         reply = '🛍️ Введіть продукцію (в деталях: конкретна назва і кількість), яку би Ви хотіли замовити.'
-        method: int = NAME
+        method: int = ORDER
         reply_markup = ReplyKeyboardRemove()
     elif user.text == button19:
         with sq.connect("database.db") as database:
@@ -829,24 +829,13 @@ def client_menu(update: Update, context: CallbackContext) -> int or None:
     return method
 
 
-def full_name(update: Update, context: CallbackContext) -> int:
-    user, from_user = base(update.message)
-    log('Client', 'Order', user)
-    message = space_filter(user.text)
-    data_dict[from_user.id]['text'].append(f'{button0}: ' + message)  # [1]
-    data_dict[from_user.id]['db'].append(message)
-    user.reply_text("👩‍❤️‍👨 Свої данні (ПіБ).")
-
-    return ORDER
-
-
 def order(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
     log('Client', 'Client name', user)
     message = space_filter(user.text)
-    data_dict[from_user.id]['text'].append('👩‍❤️‍👨 ПіБ: ' + message)  # [1]
+    data_dict[from_user.id]['text'].append(f'{button0}: ' + message)  # [1]
     data_dict[from_user.id]['db'].append(message)
-    user.reply_text('Вкажіть орієнтовну час та дату доставки:')
+    user.reply_text('📅 Вкажіть орієнтовну час та дату доставки:')
 
     return DELIVERY_TIME
 
@@ -855,7 +844,7 @@ def delivery_time(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
     log('Client', 'Delivery time', user)
     message = space_filter(user.text)
-    data_dict[from_user.id]['text'].append('👩‍❤️‍👨 Час доставки: ' + message)  # [1]
+    data_dict[from_user.id]['text'].append('📅 Час доставки: ' + message)  # [1]
     data_dict[from_user.id]['db'].append(message)
     button = [[KeyboardButton('🗺️ Вказати адресу на карті', request_location=True)]]
     user.reply_text(
@@ -863,14 +852,14 @@ def delivery_time(update: Update, context: CallbackContext) -> int:
         reply_markup=ReplyKeyboardMarkup(button, one_time_keyboard=True, resize_keyboard=True)
     )
 
-    return LOCATION
+    return NAME
 
 
 def get_location(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
     if user.text:
         text = space_filter(user.text)
-        message = '🏡 Адреса: ' + text
+        message = '👩‍❤️‍👨 ПіБ: ' + text
         db = text
         tag = 'text'
     else:
@@ -887,6 +876,17 @@ def get_location(update: Update, context: CallbackContext) -> int:
     )
 
     return CONTACT
+
+
+def full_name(update: Update, context: CallbackContext) -> int:
+    user, from_user = base(update.message)
+    log('Client', 'Order', user)
+    message = space_filter(user.text)
+    data_dict[from_user.id]['text'].append('🏡 Адреса: ' + message)  # [1]
+    data_dict[from_user.id]['db'].append(message)
+    user.reply_text("👩‍❤️‍👨 Свої данні (ПіБ).")
+
+    return LOCATION
 
 
 def get_contact(update: Update, context: CallbackContext) -> int:
@@ -934,7 +934,7 @@ def type_of_payment(update: Update, context: CallbackContext) -> int:
         with sq.connect("database.db") as database:
             cur = database.cursor()
 
-        cur.execute("INSERT INTO orders (user_id, text, delivery_time, full_name, address, phone, payment_type) "
+        cur.execute("INSERT INTO orders (user_id, text, delivery_time, address, full_name, phone, payment_type) "
                     "VALUES(?, ?, ?, ?, ?, ?, ?);", data_dict[from_user.id]['db'])
 
         database.commit()
@@ -1085,7 +1085,7 @@ def help_me(update: Update, context: CallbackContext) -> int:
                 message_id = first_message + 2
                 user.bot.send_message(chat_id=chat, text=message)
                 message_count = 0
-                while user.message_id > message_id > first_message + 1 and message_count < 11:
+                while user.message_id > message_id > first_message + 1 and message_count < 10:
                     try:
                         user.bot.forward_message(from_chat_id=user.chat_id, chat_id=chat, message_id=message_id)
                         message_id += 1
