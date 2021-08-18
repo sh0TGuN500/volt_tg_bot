@@ -831,7 +831,7 @@ def client_menu(update: Update, context: CallbackContext) -> int or None:
 
 def order(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
-    log('Client', 'Client name', user)
+    log('Client', 'Order', user)
     message = space_filter(user.text)
     data_dict[from_user.id]['text'].append(f'{button0}: ' + message)  # [1]
     data_dict[from_user.id]['db'].append(message)
@@ -846,20 +846,31 @@ def delivery_time(update: Update, context: CallbackContext) -> int:
     message = space_filter(user.text)
     data_dict[from_user.id]['text'].append('📅 Час доставки: ' + message)  # [1]
     data_dict[from_user.id]['db'].append(message)
+    user.reply_text("👩‍❤️‍👨 Свої данні (ПіБ).")
+
+    return NAME
+
+
+def full_name(update: Update, context: CallbackContext) -> int:
+    user, from_user = base(update.message)
+    log('Client', 'Client name', user)
+    message = space_filter(user.text)
+    data_dict[from_user.id]['text'].append('👩‍❤️‍👨 ПіБ: ' + message)  # [1]
+    data_dict[from_user.id]['db'].append(message)
     button = [[KeyboardButton('🗺️ Вказати адресу на карті', request_location=True)]]
     user.reply_text(
         "🏡 Адреса, куди доставити замовлення.",
         reply_markup=ReplyKeyboardMarkup(button, one_time_keyboard=True, resize_keyboard=True)
     )
 
-    return NAME
+    return LOCATION
 
 
 def get_location(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
     if user.text:
         text = space_filter(user.text)
-        message = '👩‍❤️‍👨 ПіБ: ' + text
+        message = '🏡 Адреса: ' + text
         db = text
         tag = 'text'
     else:
@@ -876,17 +887,6 @@ def get_location(update: Update, context: CallbackContext) -> int:
     )
 
     return CONTACT
-
-
-def full_name(update: Update, context: CallbackContext) -> int:
-    user, from_user = base(update.message)
-    log('Client', 'Order', user)
-    message = space_filter(user.text)
-    data_dict[from_user.id]['text'].append('🏡 Адреса: ' + message)  # [1]
-    data_dict[from_user.id]['db'].append(message)
-    user.reply_text("👩‍❤️‍👨 Свої данні (ПіБ).")
-
-    return LOCATION
 
 
 def get_contact(update: Update, context: CallbackContext) -> int:
