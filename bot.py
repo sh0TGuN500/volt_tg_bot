@@ -24,12 +24,18 @@ from telegram.ext import (
     PreCheckoutQueryHandler
 )
 
-BOT_TOKEN = os.environ['BOT_TOKEN']
-public_liqpay_sandbox = os.environ['public_liqpay_sandbox']
-bot_dev = int(os.environ['bot_dev'])
-bot_owner = int(os.environ['bot_owner'])
+DEBUG = False
 
-# from owner_data import *
+if DEBUG:
+    from owner_data import *
+    # Admin list
+    forward_to = [bot_dev]
+else:
+    BOT_TOKEN = os.environ['BOT_TOKEN']
+    public_liqpay_sandbox = os.environ['public_liqpay_sandbox']
+    bot_dev = int(os.environ['bot_dev'])
+    bot_owner = int(os.environ['bot_owner'])
+    forward_to = [bot_dev, bot_owner]
 
 
 # BLACKLIST and couriers update and optimization
@@ -51,9 +57,6 @@ BLACK_LIST = blacklist_update(True)
 data_dict = dict()
 
 separator = '🔽' * 14 + '\n'
-
-# Admin list
-forward_to = [bot_dev, bot_owner]  # bot_owner
 
 # Enable logging
 logging.basicConfig(
@@ -934,7 +937,7 @@ def type_of_payment(update: Update, context: CallbackContext) -> int:
         with sq.connect("database.db") as database:
             cur = database.cursor()
 
-        cur.execute("INSERT INTO orders (user_id, text, delivery_time, address, full_name, phone, payment_type) "
+        cur.execute("INSERT INTO orders (user_id, text, delivery_time, full_name, address, phone, payment_type) "
                     "VALUES(?, ?, ?, ?, ?, ?, ?);", data_dict[from_user.id]['db'])
 
         database.commit()
