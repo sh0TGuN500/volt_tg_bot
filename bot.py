@@ -24,7 +24,7 @@ from telegram.ext import (
     PreCheckoutQueryHandler
 )
 
-DEBUG = True
+DEBUG = False
 
 if DEBUG:
     from owner_data import *
