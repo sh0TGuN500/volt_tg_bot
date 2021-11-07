@@ -436,7 +436,9 @@ def send_courier(update: Update, context: CallbackContext) -> int:
         else:
             user.bot.send_message(chat_id=courier_id, text='\n\n'.join(map(str, cour_forward)),
                                   reply_markup=order_courier_markup)
-        reply = f'Кур\'єр {courier_name} виконує замовлення #{order_id}'
+        reply = f'Кур\'єру {courier_name} назначено замовлення #{order_id}'
+        for chat in forward_to:
+            user.bot.send_message(chat_id=chat, text=reply) if chat != from_user.id else None
     elif user.text == button16:
         reply = '↩️'
     user.reply_text(reply, reply_markup=admin_markup)
@@ -452,6 +454,9 @@ def start_count(update: Update, context: CallbackContext) -> int:
         reply_markup = admin_markup
         method = ADMIN
     else:
+        message = f'Адмін {from_user.full_name} розраховує замовлення #{user.text}'
+        for chat in forward_to:
+            user.bot.send_message(chat_id=chat, text=message) if chat != from_user.id else None
         try:
             order_id: int = int(user.text)
         except ValueError:
@@ -466,8 +471,7 @@ def start_count(update: Update, context: CallbackContext) -> int:
             reply_markup = back_markup
             method = END_COUNT
             '''#'''
-    user.reply_text(reply,
-                    reply_markup=reply_markup)
+    user.reply_text(reply, reply_markup=reply_markup)
 
     return method
 
@@ -506,7 +510,9 @@ def end_count(update: Update, context: CallbackContext) -> int:
             user.bot.forward_message(from_chat_id=courier_id, chat_id=client_id, message_id=check)
         if not pay_type:
             user.bot.send_message(text=text, chat_id=courier_id, reply_markup=confirm_pay_markup)
-        reply = 'Замовлення розраховане, очікування оплати...'
+        reply = f'Замовлення #{order_id} розраховане, очікування оплати...'
+        for chat in forward_to:
+            user.bot.send_message(chat_id=chat, text=reply) if chat != from_user.id else None
     user.reply_text(reply, reply_markup=admin_markup)
 
     return ADMIN
@@ -600,6 +606,9 @@ def ready_courier_menu(update: Update, context: CallbackContext) -> int:
     with sq.connect("database.db") as database:
         cur = database.cursor()
     if order_id and user.text == button6:
+        message = f'{from_user.full_name} прийняв замовлення #{order_id}'
+        for chat in forward_to:
+            user.bot.send_message(chat_id=chat, text=message)
         order_context: tuple = cur.execute("SELECT payment_type, purchased, has_check, counted, paid "
                                            "FROM orders WHERE pk = ?", [order_id]).fetchone()
         if order_context[1]:
@@ -648,7 +657,7 @@ def courier_purchase(update: Update, context: CallbackContext) -> int:
         for chat in forward_to:
             check_list.clear()
             user.bot.send_message(chat_id=chat, text=message)
-            message_id = check_message + 2
+            message_id = check_message + 3
             while user.message_id > message_id > check_message + 1:
                 try:
                     user.bot.forward_message(from_chat_id=user.chat_id, chat_id=chat, message_id=message_id)
@@ -679,6 +688,7 @@ def courier_purchase(update: Update, context: CallbackContext) -> int:
 
 def confirm_pay(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
+    log('Courier', 'Status', user, manual='Confirming pay')
     order_id = data_dict[from_user.id]['order_id']
     with sq.connect("database.db") as database:
         cur = database.cursor()
@@ -690,8 +700,11 @@ def confirm_pay(update: Update, context: CallbackContext) -> int:
         reply = '✅'
         method: int = DELIVERY
         reply_markup = delivery_markup
+        message = f'Кур\'єр {from_user.full_name} підтвердив оплату замовлення #{order_id}'
+        for chat in forward_to:
+            user.bot.send_message(chat_id=chat, text=message) if chat != from_user.id else None
     elif user.text == button9:
-        reply, reply_markup, method = courier_problem_module(user, from_user, order_id, 'Підтвердження оплати')
+        reply, reply_markup, method = courier_problem_module(user, from_user, order_id, 'Доставка|Оплата замовлення')
     user.reply_text(reply, reply_markup=reply_markup)
 
     return method
