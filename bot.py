@@ -24,7 +24,7 @@ from telegram.ext import (
     PreCheckoutQueryHandler
 )
 
-DEBUG = False
+DEBUG = True
 
 if DEBUG:
     from owner_data import *
@@ -658,12 +658,14 @@ def courier_purchase(update: Update, context: CallbackContext) -> int:
             check_list.clear()
             user.bot.send_message(chat_id=chat, text=message)
             message_id = check_message + 3
+            print(f'first\ncheck: {check_message}\nm_id: {message_id}\nu_m_id: {user.message_id}')
             while user.message_id > message_id > check_message + 1:
                 try:
                     user.bot.forward_message(from_chat_id=user.chat_id, chat_id=chat, message_id=message_id)
                 except BadRequest:
                     break
                 else:
+                    print(f'else\ncheck: {check_message}\nm_id: {message_id}\nu_m_id: {user.message_id}')
                     check_list.append(message_id)
                     message_id += 1
         cur.execute(f"UPDATE orders SET has_check = '{check_list}' WHERE pk = {order_id}")
