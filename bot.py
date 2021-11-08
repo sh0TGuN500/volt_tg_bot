@@ -1,7 +1,11 @@
 import logging
-import sqlite3 as sq
+# import sqlite3 as sq
 import time
 import os
+import psycopg2 as sq
+
+
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
 from math import ceil
 
@@ -40,7 +44,7 @@ else:
 
 # BLACKLIST and couriers update and optimization
 def blacklist_update(courier_reload=False) -> list:
-    with sq.connect("database.db") as blacklist:
+    with sq.connect(DATABASE_URL) as blacklist:
         cursor = blacklist.cursor()
     blacklist_filter = [True]
     courier_filter = [False, True, True, False]
@@ -106,7 +110,7 @@ def courier_problem_module(user, from_user, order_id, stage):
     reply = 'Вкажіть причину' if user.text == button8 else 'Замовлення скасовано. Вкажіть причину'
     method: int = COURIER_PROBLEM
     reply_markup = help_markup
-    with sq.connect("database.db") as database:
+    with sq.connect(DATABASE_URL) as database:
         cur = database.cursor()
     if order_id:
         update_orders_filter = [None, order_id]
@@ -274,7 +278,7 @@ def start(update: Update, context: CallbackContext) -> int or None:
         while True:
             time.sleep(86400)
     user, from_user = base(update.message)
-    with sq.connect("database.db") as database:
+    with sq.connect(DATABASE_URL) as database:
         cur = database.cursor()
     db_user_id = cur.execute("SELECT id FROM users WHERE id = ?", [from_user.id]).fetchone()
     user_data = (from_user.id, from_user.full_name, from_user.username)
@@ -324,7 +328,7 @@ def admin_menu(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
     log('Admin', 'Admin menu', user)
     data_dict[from_user.id] = {'order_id': '', 'count': '', 'cancel': ''}
-    with sq.connect("database.db") as database:
+    with sq.connect(DATABASE_URL) as database:
         cur = database.cursor()
     global BLACK_LIST
     BLACK_LIST = blacklist_update()
@@ -384,7 +388,7 @@ def admin_menu(update: Update, context: CallbackContext) -> int:
 def courier_list(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
     log('Admin', 'Chose order', user)
-    with sq.connect("database.db") as database:
+    with sq.connect(DATABASE_URL) as database:
         cur = database.cursor()
     couriers_filter = [True, True]
     couriers = cur.execute("SELECT pk, name FROM couriers WHERE is_free = ?"
@@ -412,7 +416,7 @@ def send_courier(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
     log('Admin', 'Chose courier', user)
     if user.text != button16:
-        with sq.connect("database.db") as database:
+        with sq.connect(DATABASE_URL) as database:
             cur = database.cursor()
         update_couriers_filter = [False, user.text]
         cur.execute("UPDATE couriers SET is_free = ? WHERE pk = ?", update_couriers_filter)
@@ -491,7 +495,7 @@ def end_count(update: Update, context: CallbackContext) -> int:
             user.bot.send_message(text=text, chat_id=from_user.id)
             return END_COUNT
         order_id = data_dict[from_user.id]['count']
-        with sq.connect("database.db") as database:
+        with sq.connect(DATABASE_URL) as database:
             cur = database.cursor()
         money_correct.append(True)
         cur.execute("UPDATE orders SET products_price = ?, delivery_price = ?, "
@@ -526,7 +530,7 @@ def cancel_order(update: Update, context: CallbackContext) -> int:
         method: int = ADMIN
         reply_markup = admin_markup
     else:
-        with sq.connect("database.db") as database:
+        with sq.connect(DATABASE_URL) as database:
             cur = database.cursor()
         client_id, client_name, order_id = cur.execute("SELECT user_id, full_name, pk FROM orders "
                                                        "WHERE pk = ?", [user.text]).fetchone()
@@ -560,7 +564,7 @@ def client_cancel_callback(update: Update, context: CallbackContext) -> int:
 
 def courier_menu(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
-    with sq.connect("database.db") as database:
+    with sq.connect(DATABASE_URL) as database:
         cur = database.cursor()
     courier_name: str = cur.execute("SELECT name FROM couriers WHERE telegram_id = ?", [from_user.id]).fetchone()[0]
     update_couriers_filter = [True, True, from_user.id]
@@ -603,7 +607,7 @@ def ready_courier_menu(update: Update, context: CallbackContext) -> int:
     else:
         data_dict[from_user.id] = {'check_message': user.message_id}
         order_id = False
-    with sq.connect("database.db") as database:
+    with sq.connect(DATABASE_URL) as database:
         cur = database.cursor()
     if order_id and user.text == button6:
         message = f'{from_user.full_name} прийняв замовлення #{order_id}'
@@ -645,7 +649,7 @@ def ready_courier_menu(update: Update, context: CallbackContext) -> int:
 def courier_purchase(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
     order_id = data_dict[from_user.id]['order_id']
-    with sq.connect("database.db") as database:
+    with sq.connect(DATABASE_URL) as database:
         cur = database.cursor()
     if user.text == button13:
         check_message = data_dict[from_user.id]['check_message']
@@ -692,7 +696,7 @@ def confirm_pay(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
     log('Courier', 'Status', user, manual='Confirming pay')
     order_id = data_dict[from_user.id]['order_id']
-    with sq.connect("database.db") as database:
+    with sq.connect(DATABASE_URL) as database:
         cur = database.cursor()
     confirm = cur.execute(f"SELECT counted FROM orders WHERE pk = {order_id}").fetchone()[0]
     if user.text == button21 and confirm:
@@ -715,7 +719,7 @@ def confirm_pay(update: Update, context: CallbackContext) -> int:
 def courier_delivery(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
     order_id = data_dict[from_user.id]['order_id']
-    with sq.connect("database.db") as database:
+    with sq.connect(DATABASE_URL) as database:
         cur = database.cursor()
     if user.text == button15:
         log('Courier', 'Status', user, manual='Delivery complete')
@@ -779,7 +783,7 @@ def client_menu(update: Update, context: CallbackContext) -> int or None:
         method: int = ORDER
         reply_markup = ReplyKeyboardRemove()
     elif user.text == button19:
-        with sq.connect("database.db") as database:
+        with sq.connect(DATABASE_URL) as database:
             cur = database.cursor()
         order_id_filter = [from_user.id, True, True]
         order_id = cur.execute("SELECT pk FROM orders WHERE user_id = ? "
@@ -800,7 +804,7 @@ def client_menu(update: Update, context: CallbackContext) -> int or None:
         reply_markup = client_markup
         method: int = CLIENT
         '''elif user.text == button17:
-            with sq.connect("database.db") as database:
+            with sq.connect(DATABASE_URL) as database:
                 cur = database.cursor()
             prices_filter = [1, True, False, from_user.id, False, False]
             prices: list = cur.execute("SELECT products_price, delivery_price, pk FROM orders "
@@ -820,7 +824,7 @@ def client_menu(update: Update, context: CallbackContext) -> int or None:
                 method: int = CLIENT
                 reply_markup = client_markup
         elif user.text == button18:
-            with sq.connect("database.db") as database:
+            with sq.connect(DATABASE_URL) as database:
                 cur = database.cursor()
             orders_filter = [from_user.id, 0, False, True]
             orders = cur.execute("SELECT pk FROM orders WHERE user_id = ? AND tip = ? "
@@ -949,7 +953,7 @@ def type_of_payment(update: Update, context: CallbackContext) -> int:
         data_dict[from_user.id]['text'].append(message)
         data_dict[from_user.id]['db'].append(db)
 
-        with sq.connect("database.db") as database:
+        with sq.connect(DATABASE_URL) as database:
             cur = database.cursor()
 
         cur.execute("INSERT INTO orders (user_id, text, delivery_time, full_name, address, phone, payment_type) "
@@ -979,7 +983,7 @@ def order_review(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
     order_id = data_dict[from_user.id]['order']
     review_text = space_filter(user.text)
-    with sq.connect("database.db") as database:
+    with sq.connect(DATABASE_URL) as database:
         cur = database.cursor()
     cur.execute(f"UPDATE orders SET review = '{review_text}' WHERE user_id = {from_user.id} AND pk = {order_id}")
     database.commit()
@@ -1015,7 +1019,7 @@ def tip(update: Update, context: CallbackContext) -> int:
                 log('Client', 'Tip', user, manual=f'Aboard integer: {user.text}')
             elif value == 0:
                 order_id: int = data_dict[from_user.id]['order']
-                with sq.connect("database.db") as database:
+                with sq.connect(DATABASE_URL) as database:
                     cur = database.cursor()
                 update_orders_filter = [-1, from_user.id, order_id]
                 cur.execute("UPDATE orders SET tip = ? WHERE user_id = ? AND pk = ?", update_orders_filter)
@@ -1051,7 +1055,7 @@ def successful_payment_callback(update: Update, context: CallbackContext) -> Non
     order_id: int = data_dict[from_user.id]['order']
     log_text = f'Payment {order_id} successful'
     log('Client', 'Tip', user, manual=log_text)
-    with sq.connect("database.db") as database:
+    with sq.connect(DATABASE_URL) as database:
         cur = database.cursor()
     if data_dict[from_user.id]['pay_type'] == 1:
         courier_id = cur.execute(f"SELECT courier_id FROM orders WHERE user_id = {from_user.id}"
