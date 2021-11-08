@@ -5,3 +5,4 @@ pytz
 six
 tornado
 tzlocal
+psycopg2

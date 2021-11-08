@@ -1,11 +1,7 @@
 import logging
-# import sqlite3 as sq
 import time
 import os
 import psycopg2 as sq
-
-
-DATABASE_URL = os.environ.get('DATABASE_URL')
 
 from math import ceil
 
@@ -32,9 +28,11 @@ DEBUG = False
 
 if DEBUG:
     from owner_data import *
+
     # Admin list
     forward_to = [bot_dev]
 else:
+    DATABASE_URL = os.environ.get('DATABASE_URL')
     BOT_TOKEN = os.environ['BOT_TOKEN']
     public_liqpay_sandbox = os.environ['public_liqpay_sandbox']
     bot_dev = int(os.environ['bot_dev'])
@@ -176,8 +174,8 @@ def keys_format(keys_list):
 
 
 CLIENT, ORDER, NAME, LOCATION, CONTACT, HELP, ADMIN, COURIER, START_COUNT, PAY_TYPE, COURIER_LIST, \
- SEND_COURIER, COURIER_READY, PURCHASE, COURIER_PROBLEM, DELIVERY, CANCELED, CANCEL_CALLBACK, REVIEW, \
- END_COUNT, TIP, CONFIRM_PAY, DELIVERY_TIME = range(23)
+SEND_COURIER, COURIER_READY, PURCHASE, COURIER_PROBLEM, DELIVERY, CANCELED, CANCEL_CALLBACK, REVIEW, \
+END_COUNT, TIP, CONFIRM_PAY, DELIVERY_TIME = range(23)
 
 button0 = '🍲 Замовлення'
 button1 = '🆘 Підтримка'
