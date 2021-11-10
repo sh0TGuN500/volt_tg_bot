@@ -28,9 +28,6 @@ DEBUG = False
 
 if DEBUG:
     from owner_data import *
-
-    # Admin list
-    forward_to = [bot_dev]
 else:
     DATABASE_URL = os.environ.get('DATABASE_URL')
     BOT_TOKEN = os.environ['BOT_TOKEN']
@@ -44,11 +41,10 @@ else:
 def blacklist_update(courier_reload=False) -> list:
     with sq.connect(DATABASE_URL) as blacklist:
         cursor = blacklist.cursor()
-    blacklist_filter = [True]
-    courier_filter = [False, True, True, False]
-    black_list = [i[0] for i in cursor.execute("SELECT id FROM users WHERE blocked = ?", blacklist_filter).fetchall()]
+    cursor.execute("SELECT id FROM  users WHERE blocked = true")
+    black_list = [i[0] for i in cursor.fetchall()]
     if courier_reload:
-        cursor.execute("UPDATE couriers SET ready = ?, is_free = ? WHERE ready = ? OR is_free = ?", courier_filter)
+        cursor.execute("UPDATE couriers SET ready = false, is_free = true WHERE ready = true OR is_free = false")
     blacklist.commit()
     return black_list
 
@@ -111,10 +107,9 @@ def courier_problem_module(user, from_user, order_id, stage):
     with sq.connect(DATABASE_URL) as database:
         cur = database.cursor()
     if order_id:
-        update_orders_filter = [None, order_id]
-        cur.execute("UPDATE orders SET courier_id = ? WHERE pk = ?", update_orders_filter)
-    update_couriers_filter = [True, False, from_user.id]
-    cur.execute("UPDATE couriers SET is_free = ?, ready = ? WHERE telegram_id = ?", update_couriers_filter)
+        cur.execute(f"UPDATE orders SET courier_id = NULL WHERE pk = {order_id}")
+    courier_status_filter = [True, False, from_user.id]
+    cur.execute("UPDATE couriers SET is_free = %s, ready = %s WHERE telegram_id = %s", courier_status_filter)
     database.commit()
     return reply, reply_markup, method
 
@@ -174,8 +169,8 @@ def keys_format(keys_list):
 
 
 CLIENT, ORDER, NAME, LOCATION, CONTACT, HELP, ADMIN, COURIER, START_COUNT, PAY_TYPE, COURIER_LIST, \
-SEND_COURIER, COURIER_READY, PURCHASE, COURIER_PROBLEM, DELIVERY, CANCELED, CANCEL_CALLBACK, REVIEW, \
-END_COUNT, TIP, CONFIRM_PAY, DELIVERY_TIME = range(23)
+ SEND_COURIER, COURIER_READY, PURCHASE, COURIER_PROBLEM, DELIVERY, CANCELED, CANCEL_CALLBACK, REVIEW, \
+ END_COUNT, TIP, CONFIRM_PAY, DELIVERY_TIME = range(23)
 
 button0 = '🍲 Замовлення'
 button1 = '🆘 Підтримка'
@@ -278,17 +273,21 @@ def start(update: Update, context: CallbackContext) -> int or None:
     user, from_user = base(update.message)
     with sq.connect(DATABASE_URL) as database:
         cur = database.cursor()
-    db_user_id = cur.execute("SELECT id FROM users WHERE id = ?", [from_user.id]).fetchone()
+    cur.execute("SELECT id FROM users WHERE id = %s", (from_user.id,))
+    db_user_id = cur.fetchone()
     user_data = (from_user.id, from_user.full_name, from_user.username)
 
     if not db_user_id:
-        cur.execute("INSERT INTO users (id, full_name, username) VALUES(?, ?, ?);", user_data)
+        cur.execute("INSERT INTO users (id, full_name, username) "
+                    "VALUES (%s, %s, %s)", user_data)
     else:
-        cur.execute("UPDATE users SET full_name = ?, username = ? WHERE id = '{from_user.id}'", user_data[1:])
+        cur.execute("UPDATE users SET full_name = %s, username = %s "
+                    "WHERE id = %s", (from_user.full_name, from_user.username, from_user.id))
 
     database.commit()
 
-    couriers = [i[0] for i in cur.execute("SELECT telegram_id FROM couriers").fetchall()]
+    cur.execute("SELECT telegram_id FROM couriers")
+    couriers = [i[0] for i in cur.fetchall()]
 
     if from_user.id in forward_to:
         role = 'Admin'
@@ -335,25 +334,29 @@ def admin_menu(update: Update, context: CallbackContext) -> int:
 
         if user.text == button2:
             orders_filter = [False, False, False]
-            orders = [i[0] for i in cur.execute("SELECT pk FROM orders WHERE courier_id ISNULL "
-                                                "AND completed = ? AND canceled = ? "
-                                                "AND purchased = ?", orders_filter).fetchall()]
+            cur.execute("SELECT pk FROM orders WHERE courier_id ISNULL "
+                        "AND completed = %s AND canceled = %s "
+                        "AND purchased = %s", orders_filter)
+            orders = [i[0] for i in cur.fetchall()]
 
         elif user.text == button3:
             orders_filter = [False, False, True]
-            orders = [i[0] for i in cur.execute("SELECT pk, courier_id FROM orders WHERE courier_id ISNULL "
-                                                "AND completed = ? AND canceled = ? "
-                                                "AND purchased = ?", orders_filter).fetchall()]
+            cur.execute("SELECT pk, courier_id FROM orders WHERE courier_id ISNULL "
+                        "AND completed = %s AND canceled = %s "
+                        "AND purchased = %s", orders_filter)
+            orders = [i[0] for i in cur.fetchall()]
 
         elif user.text == button7:
             orders_filter = [False, False]
-            orders = [i[0] for i in cur.execute("SELECT pk FROM orders WHERE completed = ?"
-                                                " AND canceled = ?", orders_filter).fetchall()]
+            cur.execute("SELECT pk FROM orders WHERE completed = %s"
+                        " AND canceled = %s", orders_filter)
+            orders = [i[0] for i in cur.fetchall()]
 
         else:
             uncounted_filter = [False, True, False, False]
-            orders = [i[0] for i in cur.execute("SELECT pk FROM orders WHERE counted = ? AND purchased = ?"
-                                                " AND completed = ? AND canceled = ?", uncounted_filter).fetchall()]
+            cur.execute("SELECT pk FROM orders WHERE counted = %s AND purchased = %s"
+                        " AND completed = %s AND canceled = %s", uncounted_filter)
+            orders = [i[0] for i in cur.fetchall()]
 
         if orders:
             order_list = [str(order_id) for order_id in orders]
@@ -389,8 +392,9 @@ def courier_list(update: Update, context: CallbackContext) -> int:
     with sq.connect(DATABASE_URL) as database:
         cur = database.cursor()
     couriers_filter = [True, True]
-    couriers = cur.execute("SELECT pk, name FROM couriers WHERE is_free = ?"
-                           " AND ready = ?", couriers_filter).fetchall()
+    cur.execute("SELECT pk, name FROM couriers WHERE is_free = %s"
+                " AND ready = %s", couriers_filter)
+    couriers = cur.fetchall()
 
     if couriers and user.text != button16:
         data_dict[from_user.id]['order_id'] = user.text
@@ -417,19 +421,21 @@ def send_courier(update: Update, context: CallbackContext) -> int:
         with sq.connect(DATABASE_URL) as database:
             cur = database.cursor()
         update_couriers_filter = [False, user.text]
-        cur.execute("UPDATE couriers SET is_free = ? WHERE pk = ?", update_couriers_filter)
+        cur.execute("UPDATE couriers SET is_free = %s WHERE pk = %s", update_couriers_filter)
         order_id = data_dict[from_user.id]['order_id']
-        courier_id, courier_name = cur.execute("SELECT telegram_id, name FROM couriers "
-                                               "WHERE pk = ?", [user.text]).fetchone()
+        cur.execute("SELECT telegram_id, name FROM couriers "
+                    "WHERE pk = %s", [user.text])
+        courier_id, courier_name = cur.fetchone()
         if courier_id in data_dict:
             data_dict[courier_id]['order_id'] = order_id
         else:
             data_dict[courier_id] = {'order_id': order_id}
-        cur.execute("UPDATE orders SET courier_id = ? WHERE pk = ?", [courier_id, order_id])
+        cur.execute("UPDATE orders SET courier_id = %s WHERE pk = %s", [courier_id, order_id])
         database.commit()
 
-        cour_forward = list(cur.execute("SELECT text, full_name, address, phone FROM orders"
-                                        " WHERE pk = ?", [order_id]).fetchone())
+        cur.execute("SELECT text, full_name, adress, phone FROM orders"
+                    " WHERE pk = %s", [order_id])
+        cour_forward = list(cur.fetchone())
         if len(cour_forward[2].split('  ')) == 2:
             coord = cour_forward.pop(2).split('  ')
             user.bot.send_message(chat_id=courier_id, text='\n\n'.join(map(str, cour_forward)))
@@ -496,18 +502,21 @@ def end_count(update: Update, context: CallbackContext) -> int:
         with sq.connect(DATABASE_URL) as database:
             cur = database.cursor()
         money_correct.append(True)
-        cur.execute("UPDATE orders SET products_price = ?, delivery_price = ?, "
-                    f"counted = ? WHERE pk = {order_id}", money_correct)
+        money_correct.append(order_id)
+        cur.execute("UPDATE orders SET products_price = %s, delivery_price = %s, "
+                    f"counted = %s WHERE pk = %s", money_correct)
         database.commit()
-        client_id, courier_id, pay_type = cur.execute("SELECT user_id, courier_id, payment_type "
-                                                      "FROM orders WHERE pk = ?", [order_id]).fetchone()
+        cur.execute("SELECT user_id, courier_id, payment_type "
+                    "FROM orders WHERE pk = %s", [order_id])
+        client_id, courier_id, pay_type = cur.fetchone()
         check, delivery = [float(i.replace(',', '.')) for i in user.text.split(' ')]
         text = f'Вартість вашого чеку: {check} грн\nВартість доставки: {delivery} грн' \
                f'\nСума до сплати: {round(check + delivery, 2)} грн'
         user.bot.send_message(text=text, chat_id=client_id)
 
-        check_list, courier_id, client_id = cur.execute("SELECT has_check, courier_id, user_id "
-                                                        "FROM orders WHERE pk = ?", [order_id]).fetchone()
+        cur.execute("SELECT has_check, courier_id, user_id "
+                    "FROM orders WHERE pk = %s", [order_id])
+        check_list, courier_id, client_id = cur.fetchone()
         for check in eval(check_list):
             user.bot.forward_message(from_chat_id=courier_id, chat_id=client_id, message_id=check)
         if not pay_type:
@@ -530,11 +539,12 @@ def cancel_order(update: Update, context: CallbackContext) -> int:
     else:
         with sq.connect(DATABASE_URL) as database:
             cur = database.cursor()
-        client_id, client_name, order_id = cur.execute("SELECT user_id, full_name, pk FROM orders "
-                                                       "WHERE pk = ?", [user.text]).fetchone()
+        cur.execute("SELECT user_id, full_name, pk FROM orders "
+                    "WHERE pk = %s", [user.text])
+        client_id, client_name, order_id = cur.fetchone()
         data_dict[from_user.id]['cancel'] = [client_id, client_name, order_id]
         update_orders_filter = [True, user.text]
-        cur.execute("UPDATE orders SET canceled = ? WHERE pk = ?", update_orders_filter)
+        cur.execute("UPDATE orders SET canceled = %s WHERE pk = %s", update_orders_filter)
         database.commit()
         reply = f'Замовлення # {user.text} скасовано, причина скасування:'
         method: int = CANCEL_CALLBACK
@@ -564,13 +574,15 @@ def courier_menu(update: Update, context: CallbackContext) -> int:
     user, from_user = base(update.message)
     with sq.connect(DATABASE_URL) as database:
         cur = database.cursor()
-    courier_name: str = cur.execute("SELECT name FROM couriers WHERE telegram_id = ?", [from_user.id]).fetchone()[0]
+    cur.execute("SELECT name FROM couriers WHERE telegram_id = %s", [from_user.id])
+    courier_name: str = cur.fetchone()[0]
     update_couriers_filter = [True, True, from_user.id]
-    cur.execute("UPDATE couriers SET ready = ?, is_free = ? WHERE telegram_id = ?", update_couriers_filter)
+    cur.execute("UPDATE couriers SET ready = %s, is_free = %s WHERE telegram_id = %s", update_couriers_filter)
     database.commit()
     order_exist_filter = [from_user.id, False, False]
-    order_exist: tuple = cur.execute("SELECT pk FROM orders WHERE courier_id = ?"
-                                     " AND completed = ? AND canceled = ?", order_exist_filter).fetchone()
+    cur.execute("SELECT pk FROM orders WHERE courier_id = %s"
+                " AND completed = %s AND canceled = %s", order_exist_filter)
+    order_exist: tuple = cur.fetchone()
     text = f'{courier_name} готовий'
     for chat in forward_to:
         user.bot.send_message(text=text, chat_id=chat)
@@ -578,8 +590,9 @@ def courier_menu(update: Update, context: CallbackContext) -> int:
     log('Courier', 'Status', user, manual='Ready')
     if order_exist:
         data_dict[from_user.id] = {'order_id': order_exist[0]}
-        cour_forward = list(cur.execute("SELECT text, full_name, address, phone FROM orders"
-                                        " WHERE pk = ?", [order_exist[0]]).fetchone())
+        cur.execute("SELECT text, full_name, adress, phone FROM orders"
+                    " WHERE pk = %s", [order_exist[0]])
+        cour_forward = list(cur.fetchone())
         if len(cour_forward[2].split('  ')) == 2:
             coord = cour_forward.pop(2).split('  ')
             user.bot.send_message(chat_id=user.chat_id, text='\n\n'.join(map(str, cour_forward)))
@@ -611,8 +624,9 @@ def ready_courier_menu(update: Update, context: CallbackContext) -> int:
         message = f'{from_user.full_name} прийняв замовлення #{order_id}'
         for chat in forward_to:
             user.bot.send_message(chat_id=chat, text=message)
-        order_context: tuple = cur.execute("SELECT payment_type, purchased, has_check, counted, paid "
-                                           "FROM orders WHERE pk = ?", [order_id]).fetchone()
+        cur.execute("SELECT payment_type, purchased, has_check, counted, paid "
+                    "FROM orders WHERE pk = %s", [order_id])
+        order_context: tuple = cur.fetchone()
         if order_context[1]:
             reply = f'Замовлення #{order_id}:\nПридбане\nТип оплати: '
             reply += 'безготівковий' if order_context[0] else 'готівка'
@@ -653,25 +667,24 @@ def courier_purchase(update: Update, context: CallbackContext) -> int:
         check_message = data_dict[from_user.id]['check_message']
         log('Courier', 'Status', user, sf=False, manual='Send checks and delivery')
         update_orders_filter = [True, order_id]
-        cur.execute("UPDATE orders SET purchased = ? WHERE pk = ?", update_orders_filter)
+        cur.execute("UPDATE orders SET purchased = %s WHERE pk = %s", update_orders_filter)
         message = f'Чеки до замовлення #{order_id}:'
         check_list = []
         for chat in forward_to:
             check_list.clear()
             user.bot.send_message(chat_id=chat, text=message)
             message_id = check_message + 3
-            print(f'first\ncheck: {check_message}\nm_id: {message_id}\nu_m_id: {user.message_id}')
             while user.message_id > message_id > check_message + 1:
                 try:
                     user.bot.forward_message(from_chat_id=user.chat_id, chat_id=chat, message_id=message_id)
                 except BadRequest:
                     break
                 else:
-                    print(f'else\ncheck: {check_message}\nm_id: {message_id}\nu_m_id: {user.message_id}')
                     check_list.append(message_id)
                     message_id += 1
         cur.execute(f"UPDATE orders SET has_check = '{check_list}' WHERE pk = {order_id}")
-        pay_type, paid = cur.execute(f"SELECT payment_type, paid FROM orders WHERE pk = {order_id}").fetchone()
+        cur.execute(f"SELECT payment_type, paid FROM orders WHERE pk = {order_id}")
+        pay_type, paid = cur.fetchone()
         if pay_type:
             reply = ' 🚶🏼 Прямуйте за вказаною адресою, вас вже зачекались!'
             method: int = DELIVERY
@@ -696,10 +709,11 @@ def confirm_pay(update: Update, context: CallbackContext) -> int:
     order_id = data_dict[from_user.id]['order_id']
     with sq.connect(DATABASE_URL) as database:
         cur = database.cursor()
-    confirm = cur.execute(f"SELECT counted FROM orders WHERE pk = {order_id}").fetchone()[0]
+    cur.execute(f"SELECT counted FROM orders WHERE pk = {order_id}")
+    confirm = cur.fetchone()[0]
     if user.text == button21 and confirm:
         update_orders_filter = [True, order_id]
-        cur.execute("UPDATE orders SET paid = ? WHERE pk = ?", update_orders_filter)
+        cur.execute("UPDATE orders SET paid = %s WHERE pk = %s", update_orders_filter)
         database.commit()
         reply = '✅'
         method: int = DELIVERY
@@ -721,14 +735,15 @@ def courier_delivery(update: Update, context: CallbackContext) -> int:
         cur = database.cursor()
     if user.text == button15:
         log('Courier', 'Status', user, manual='Delivery complete')
-        name, cour_id = cur.execute(f'SELECT name, pk FROM couriers WHERE telegram_id = {from_user.id}').fetchone()
+        cur.execute(f'SELECT name, pk FROM couriers WHERE telegram_id = {from_user.id}')
+        name, cour_id = cur.fetchone()
         message = f'{name} (#{cour_id}) виконав замовлення #{order_id}'
         for chat in forward_to:
             user.bot.send_message(chat_id=chat, text=message)
         update_orders_filter = [True, order_id]
-        cur.execute("UPDATE orders SET completed = ? WHERE pk = ?", update_orders_filter)
+        cur.execute("UPDATE orders SET completed = %s WHERE pk = %s", update_orders_filter)
         update_couriers_filter = [True, True, from_user.id]
-        cur.execute("UPDATE couriers SET is_free = ?, ready = ? WHERE telegram_id = ?", update_couriers_filter)
+        cur.execute("UPDATE couriers SET is_free = %s, ready = %s WHERE telegram_id = %s", update_couriers_filter)
         reply = 'Замовлення успішно виконано'
         method = COURIER_READY
         reply_markup = ready_courier_markup
@@ -784,8 +799,9 @@ def client_menu(update: Update, context: CallbackContext) -> int or None:
         with sq.connect(DATABASE_URL) as database:
             cur = database.cursor()
         order_id_filter = [from_user.id, True, True]
-        order_id = cur.execute("SELECT pk FROM orders WHERE user_id = ? "
-                               "AND (completed = ? OR canceled = ?) AND review ISNULL", order_id_filter).fetchone()
+        cur.execute("SELECT pk FROM orders WHERE user_id = %s "
+                    "AND (completed = %s OR canceled = %s) AND review ISNULL", order_id_filter)
+        order_id = cur.fetchone()
         if order_id:
             data_dict[from_user.id]['order']: int = order_id[0]
             reply = f'Відгук до замовлення #{order_id[0]}:'
@@ -797,7 +813,6 @@ def client_menu(update: Update, context: CallbackContext) -> int or None:
             method: int = CLIENT
             reply_markup = client_markup
     elif user.text in [button17, button18]:
-        print(user.text)
         reply = 'В розробці'
         reply_markup = client_markup
         method: int = CLIENT
@@ -806,8 +821,8 @@ def client_menu(update: Update, context: CallbackContext) -> int or None:
                 cur = database.cursor()
             prices_filter = [1, True, False, from_user.id, False, False]
             prices: list = cur.execute("SELECT products_price, delivery_price, pk FROM orders "
-                                       "WHERE payment_type = ? AND counted = ? AND completed = ? "
-                                       "AND user_id = ? AND paid = ? AND canceled = ?", prices_filter).fetchall()
+                                       "WHERE payment_type = %s AND counted = %s AND completed = %s "
+                                       "AND user_id = %s AND paid = %s AND canceled = %s", prices_filter).fetchall()
             if prices:
                 data_dict[from_user.id]['pay_type']: int = 1
                 for price in prices:
@@ -825,8 +840,8 @@ def client_menu(update: Update, context: CallbackContext) -> int or None:
             with sq.connect(DATABASE_URL) as database:
                 cur = database.cursor()
             orders_filter = [from_user.id, 0, False, True]
-            orders = cur.execute("SELECT pk FROM orders WHERE user_id = ? AND tip = ? "
-                                 "AND canceled = ? AND completed = ? AND courier_id IS NOT NULL", orders_filter).fetchall()
+            orders = cur.execute("SELECT pk FROM orders WHERE user_id = %s AND tip = %s "
+                                 "AND canceled = %s AND completed = %s AND courier_id IS NOT NULL", orders_filter).fetchall()
             if orders:
                 data_dict[from_user.id]['order']: int = orders[-1][0]
                 reply = f'Будь-ласка, введіть суму чайових в грн, до замовлення #{orders[-1][0]}'
@@ -953,13 +968,19 @@ def type_of_payment(update: Update, context: CallbackContext) -> int:
 
         with sq.connect(DATABASE_URL) as database:
             cur = database.cursor()
-
-        cur.execute("INSERT INTO orders (user_id, text, delivery_time, full_name, address, phone, payment_type) "
-                    "VALUES(?, ?, ?, ?, ?, ?, ?);", data_dict[from_user.id]['db'])
-
+        cur.execute("SELECT MAX(pk) FROM orders")
+        try:
+            order_id = cur.fetchone()[0] + 1
+        except TypeError:
+            order_id = 1
+        order_filter = data_dict[from_user.id]['db']
+        order_filter.append(order_id)
+        cur.execute("INSERT INTO orders (user_id, text, delivery_time, full_name, adress, phone, payment_type, pk) "
+                    "VALUES(%s, %s, %s, %s, %s, %s, %s, %s)", order_filter)
         database.commit()
 
-        order_id = cur.execute("SELECT pk FROM orders WHERE user_id = ?", [from_user.id]).fetchall()[::-1][0][0]
+        '''cur.execute("SELECT pk FROM orders WHERE user_id = %s", [from_user.id])
+        order_id = cur.fetchall()[::-1][0][0]'''
 
         data_dict[from_user.id]['text'].append(f'Номер замовлення: {order_id}')
 
@@ -983,7 +1004,8 @@ def order_review(update: Update, context: CallbackContext) -> int:
     review_text = space_filter(user.text)
     with sq.connect(DATABASE_URL) as database:
         cur = database.cursor()
-    cur.execute(f"UPDATE orders SET review = '{review_text}' WHERE user_id = {from_user.id} AND pk = {order_id}")
+    review_list_filter = [review_text, from_user.id, order_id]
+    cur.execute(f"UPDATE orders SET review = %s WHERE user_id = %s AND pk = %s", review_list_filter)
     database.commit()
     for chat in forward_to:
         user.bot.send_message(chat_id=chat, text=f'Відгук до замовлення #{order_id}\n'
@@ -1020,7 +1042,7 @@ def tip(update: Update, context: CallbackContext) -> int:
                 with sq.connect(DATABASE_URL) as database:
                     cur = database.cursor()
                 update_orders_filter = [-1, from_user.id, order_id]
-                cur.execute("UPDATE orders SET tip = ? WHERE user_id = ? AND pk = ?", update_orders_filter)
+                cur.execute("UPDATE orders SET tip = %s WHERE user_id = %s AND pk = %s", update_orders_filter)
                 database.commit()
                 reply = f'Чайові замовлення #{order_id} скасовані'
                 reply_markup = client_markup
@@ -1056,15 +1078,18 @@ def successful_payment_callback(update: Update, context: CallbackContext) -> Non
     with sq.connect(DATABASE_URL) as database:
         cur = database.cursor()
     if data_dict[from_user.id]['pay_type'] == 1:
-        courier_id = cur.execute(f"SELECT courier_id FROM orders WHERE user_id = {from_user.id}"
-                                 f" AND pk = {order_id}").fetchone()[0]
+        get_courier_id_filter = [from_user.id, order_id]
+        cur.execute(f"SELECT courier_id FROM orders WHERE user_id = %s"
+                    f" AND pk = %s", get_courier_id_filter)
+        courier_id = cur.fetchone()[0]
         update_orders_filter = [True, from_user.id, order_id]
-        cur.execute("UPDATE orders SET paid = ? WHERE user_id = ? AND pk = ?", update_orders_filter)
+        cur.execute("UPDATE orders SET paid = %s WHERE user_id = %s AND pk = %s", update_orders_filter)
         database.commit()
         if courier_id:
             text = f'Замовлення #{order_id} оплачено'
-            courier_status = cur.execute("SELECT telegram_id FROM couriers WHERE is_free = ?"
-                                         " AND telegram_id = ?", [False, courier_id]).fetchone()[0]
+            cur.execute("SELECT telegram_id FROM couriers WHERE is_free = %s"
+                        " AND telegram_id = %s", [False, courier_id])
+            courier_status = cur.fetchone()[0]
             user.bot.send_message(text=text, chat_id=courier_id,
                                   reply_markup=delivery_markup if courier_status else ReplyKeyboardRemove())
     elif data_dict[from_user.id]['pay_type'] == 2:
@@ -1073,9 +1098,9 @@ def successful_payment_callback(update: Update, context: CallbackContext) -> Non
             cur.execute(f"UPDATE orders SET tip = {tip_value * 100} "
                         f"WHERE user_id = {from_user.id} AND pk = {order_id}")
             text = f'Чайові по замовленню #{order_id}: {tip_value} грн'
-        else:
+        '''else:
             cur.execute(f"UPDATE users SET donations = donations + {tip_value * 100} WHERE id = {from_user.id}")
-            text = f'Чайові власнику: {tip_value} грн'
+            text = f'Чайові власнику: {tip_value} грн'''
         for owner_id in forward_to:
             user.bot.send_message(text=text, chat_id=owner_id)
     database.commit()
