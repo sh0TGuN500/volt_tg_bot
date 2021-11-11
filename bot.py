@@ -95,10 +95,19 @@ def log(role, status, user, manual=None, sf=True) -> None:
         logger.info('{0}: |{1}| {2}: {3}: {4}'.format(*user_data))
 
 
+def format_cour_order(cour_list_forward: list) -> list:
+    cour_list_forward = [separator] + cour_list_forward
+    cour_list_forward[1] = '🍲 Замовлення: ' + cour_list_forward[1]
+    cour_list_forward[2] = '📅 Час доставки: ' + cour_list_forward[2]
+    cour_list_forward[3] = '👩‍❤️‍👨 ПіБ: ' + cour_list_forward[3]
+    cour_list_forward[5] = '📱 Телефон: ' + cour_list_forward[5]
+    return cour_list_forward
+
+
 # Courier problem-button part
 def courier_problem_module(user, from_user, order_id, stage):
     data_dict[from_user.id]['check_message'] = user.message_id
-    problem_message = f'Замовлення #{order_id}\nСтадія: {stage}\n{user.text}' if order_id else user.text
+    problem_message = f'Замовлення #{order_id}\nСтадія: {stage}\nВідмова' if order_id else user.text
     data_dict[from_user.id]['problem'] = problem_message
     log('Courier', 'Status', user)
     reply = 'Вкажіть причину' if user.text == button8 else 'Замовлення скасовано. Вкажіть причину'
@@ -169,8 +178,8 @@ def keys_format(keys_list):
 
 
 CLIENT, ORDER, NAME, LOCATION, CONTACT, HELP, ADMIN, COURIER, START_COUNT, PAY_TYPE, COURIER_LIST, \
- SEND_COURIER, COURIER_READY, PURCHASE, COURIER_PROBLEM, DELIVERY, CANCELED, CANCEL_CALLBACK, REVIEW, \
- END_COUNT, TIP, CONFIRM_PAY, DELIVERY_TIME = range(23)
+SEND_COURIER, COURIER_READY, PURCHASE, COURIER_PROBLEM, DELIVERY, CANCELED, CANCEL_CALLBACK, REVIEW, \
+END_COUNT, TIP, CONFIRM_PAY, DELIVERY_TIME = range(23)
 
 button0 = '🍲 Замовлення'
 button1 = '🆘 Підтримка'
@@ -433,15 +442,17 @@ def send_courier(update: Update, context: CallbackContext) -> int:
         cur.execute("UPDATE orders SET courier_id = %s WHERE pk = %s", [courier_id, order_id])
         database.commit()
 
-        cur.execute("SELECT text, full_name, adress, phone FROM orders"
+        cur.execute("SELECT text, delivery_time, full_name, adress, phone FROM orders"
                     " WHERE pk = %s", [order_id])
         cour_forward = list(cur.fetchone())
-        if len(cour_forward[2].split('  ')) == 2:
-            coord = cour_forward.pop(2).split('  ')
+        cour_forward = format_cour_order(cour_forward)
+        if len(cour_forward[4].split('  ')) == 2:
+            coord = cour_forward.pop(4).split('  ')
             user.bot.send_message(chat_id=courier_id, text='\n\n'.join(map(str, cour_forward)))
             user.bot.send_location(chat_id=courier_id, latitude=coord[0], longitude=coord[1],
                                    reply_markup=order_courier_markup)
         else:
+            cour_forward[4] = '🏡 Адреса: ' + cour_forward[4]
             user.bot.send_message(chat_id=courier_id, text='\n\n'.join(map(str, cour_forward)),
                                   reply_markup=order_courier_markup)
         reply = f'Кур\'єру {courier_name} назначено замовлення #{order_id}'
@@ -490,7 +501,13 @@ def end_count(update: Update, context: CallbackContext) -> int:
         log('Admin', 'Turn back', user)
         reply = '↩️'
     else:
-        money_correct = [int(float(i.replace(',', '.')) * 100) for i in user.text.split(' ')]
+        try:
+            money_correct = [int(float(i.replace(',', '.')) * 100) for i in user.text.split(' ')]
+        except ValueError:
+            text = f'Ти ввів {user.text}, а потрібно ввести два числа,' \
+                   '\nЧек потім доставка, через пробіл (12,3 4.56)!\nВводи іще раз:'
+            user.bot.send_message(text=text, chat_id=from_user.id)
+            return END_COUNT
 
         log('Admin', 'Counting result', user)
         if len(money_correct) != 2:
@@ -590,15 +607,17 @@ def courier_menu(update: Update, context: CallbackContext) -> int:
     log('Courier', 'Status', user, manual='Ready')
     if order_exist:
         data_dict[from_user.id] = {'order_id': order_exist[0]}
-        cur.execute("SELECT text, full_name, adress, phone FROM orders"
+        cur.execute("SELECT text, delivery_time, full_name, adress, phone FROM orders"
                     " WHERE pk = %s", [order_exist[0]])
         cour_forward = list(cur.fetchone())
-        if len(cour_forward[2].split('  ')) == 2:
-            coord = cour_forward.pop(2).split('  ')
+        cour_forward = format_cour_order(cour_forward)
+        if len(cour_forward[4].split('  ')) == 2:
+            coord = cour_forward.pop(4).split('  ')
             user.bot.send_message(chat_id=user.chat_id, text='\n\n'.join(map(str, cour_forward)))
             user.bot.send_location(chat_id=user.chat_id, latitude=coord[0], longitude=coord[1],
                                    reply_markup=order_courier_markup)
         else:
+            cour_forward[4] = '🏡 Адреса: ' + cour_forward[4]
             user.bot.send_message(chat_id=user.chat_id, text='\n\n'.join(map(str, cour_forward)),
                                   reply_markup=order_courier_markup)
     reply_markup = order_courier_markup if order_exist else ready_courier_markup
@@ -651,6 +670,10 @@ def ready_courier_menu(update: Update, context: CallbackContext) -> int:
                     'І після закупівлі всіх товарів надішліть фото чеку! 📸'
             method: int = PURCHASE
             reply_markup = purchase_markup
+        cur.execute("SELECT user_id FROM orders WHERE pk = %s", [order_id])
+        client_id: int = cur.fetchone()[0]
+        message = 'Кур\'єр ' + message
+        user.bot.send_message(chat_id=client_id, text=message)
     elif user.text in [button7, button8, button9]:
         reply, reply_markup, method = courier_problem_module(user, from_user, order_id, 'Початок')
     database.commit()
@@ -673,8 +696,8 @@ def courier_purchase(update: Update, context: CallbackContext) -> int:
         for chat in forward_to:
             check_list.clear()
             user.bot.send_message(chat_id=chat, text=message)
-            message_id = check_message + 3
-            while user.message_id > message_id > check_message + 1:
+            message_id = check_message + 4
+            while user.message_id > message_id > check_message + 2:
                 try:
                     user.bot.forward_message(from_chat_id=user.chat_id, chat_id=chat, message_id=message_id)
                 except BadRequest:
